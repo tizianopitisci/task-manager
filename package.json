@@ -10,10 +10,13 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
+    "@tiptap/react": "^3.20.0",
+    "@tiptap/starter-kit": "^3.20.0",
     "luxon": "^3.7.2",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "reactflow": "^11.11.4",
     "resend": "^6.9.2"
   },
   "devDependencies": {
