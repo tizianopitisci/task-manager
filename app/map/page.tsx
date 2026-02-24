@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, memo } from "react";
-import ReactFlow, { Controls, Background, Handle, Position } from "reactflow";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import ReactFlow, { Controls, Background, Handle, Position, useReactFlow } from "reactflow";
 import type { Node, Edge, NodeProps } from "reactflow";
 import "reactflow/dist/style.css";
 import { DateTime } from "luxon";
@@ -66,6 +66,8 @@ type TaskNodeData = {
 
   onSetDue: (id: string, dateISO: string | null) => void;
   onOpenNotes: (id: string) => void;
+
+  // nessun callback DnD: il drag è gestito nativamente da ReactFlow
 };
 
 const InvisibleHandleStyle: React.CSSProperties = {
@@ -313,9 +315,17 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
       <Handle type="target" position={Position.Left} style={InvisibleHandleStyle} />
 
       <div className="flex items-start gap-2">
+        {/* Grip handle — drag-handle per ReactFlow nativo */}
+        <div
+          className={["drag-handle mt-1 cursor-grab select-none text-base leading-none active:cursor-grabbing", data.isTopLevel ? "text-white/30 hover:text-white/60" : "text-gray-300 hover:text-gray-500"].join(" ")}
+          title="Trascina per riordinare tra i fratelli"
+        >
+          ⠿
+        </div>
+
         <button
           type="button"
-          className="mt-0.5 select-none text-lg leading-none"
+          className="nodrag mt-0.5 select-none text-lg leading-none"
           onClick={(e) => {
             e.stopPropagation();
             data.onToggle(data.id);
@@ -325,7 +335,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
           {data.completed ? "☑" : "☐"}
         </button>
 
-        <div className="min-w-0 flex-1">
+        <div className="nodrag min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               {data.isEditing ? (
@@ -433,6 +443,19 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   );
 });
 
+// Chiama fitView una volta sola, dopo che i task sono stati caricati e i nodi misurati
+function FitViewOnLoad({ nodeCount }: { nodeCount: number }) {
+  const { fitView } = useReactFlow();
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (nodeCount > 1 && !fitted.current) {
+      fitted.current = true;
+      setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 50);
+    }
+  }, [nodeCount, fitView]);
+  return null;
+}
+
 export default function MapPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
 
@@ -450,6 +473,9 @@ export default function MapPage() {
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
+
+  // posizioni libere salvate dall'utente con il drag
+  const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
 
   // ---- auth guard ----
   useEffect(() => {
@@ -786,7 +812,7 @@ export default function MapPage() {
         return {
           id: t.id,
           type: "taskNode",
-          position: { x: depth * xGap, y: (yUnits.get(t.id) ?? 0) * yGap },
+          position: manualPositions[t.id] ?? { x: depth * xGap, y: (yUnits.get(t.id) ?? 0) * yGap },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
           data: {
@@ -814,6 +840,7 @@ export default function MapPage() {
               setNotesTaskId(id);
               setNotesOpen(true);
             },
+            // nessun callback drag: gestito da onNodeDragStop su ReactFlow
           },
         };
       });
@@ -862,7 +889,66 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, rootLabel, rootEditing, expanded]);
+  }, [visibleTasks, tasks, editingId, rootLabel, rootEditing, expanded, manualPositions]);
+
+  // ---- drag-to-reorder via ReactFlow nativo ----
+  // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
+  // le posizioni aggiornate di TUTTI i nodi dopo il drop.
+  // Usiamo la posizione Y per determinare il nuovo ordinamento tra i fratelli.
+  const onNodeDragStop = useCallback(
+    async (_event: React.MouseEvent, draggedNode: Node, allCurrentNodes: Node[]) => {
+      const draggedTask = tasks.find((t) => t.id === draggedNode.id);
+      if (!draggedTask) return;
+
+      // fratelli ordinati per sort_order attuale
+      const siblings = tasks
+        .filter((t) => t.parent_id === draggedTask.parent_id)
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+      if (siblings.length <= 1) {
+        // figlio unico o nodo radice: salva solo la posizione libera
+        setManualPositions((prev) => ({ ...prev, [draggedNode.id]: draggedNode.position }));
+        return;
+      }
+
+      // ordinamento per posizione Y dopo il drag
+      const siblingsByY = siblings
+        .map((s) => {
+          const rfNode = allCurrentNodes.find((n) => n.id === s.id);
+          return { task: s, y: rfNode?.position.y ?? 0 };
+        })
+        .sort((a, b) => a.y - b.y);
+
+      const oldIds = siblings.map((s) => s.id).join(",");
+      const newIds = siblingsByY.map((s) => s.task.id).join(",");
+
+      if (oldIds === newIds) {
+        // nessun riordinamento: salva la posizione libera del nodo trascinato
+        setManualPositions((prev) => ({ ...prev, [draggedNode.id]: draggedNode.position }));
+        return;
+      }
+
+      // riordinamento rilevato: cancella le posizioni manuali dei fratelli
+      // così dopo il reload il layout automatico si ricalcola correttamente
+      setManualPositions((prev) => {
+        const next = { ...prev };
+        siblings.forEach((s) => delete next[s.id]);
+        return next;
+      });
+
+      setError(null);
+      const results = await Promise.all(
+        siblingsByY.map(({ task }, i) =>
+          supabase.from("tasks").update({ sort_order: i }).eq("id", task.id),
+        ),
+      );
+      const firstError = results.find((r) => r.error)?.error;
+      if (firstError) { setError(firstError.message); return; }
+
+      await load();
+    },
+    [tasks],
+  );
 
   if (!sessionChecked) {
     return <main className="min-h-screen bg-white p-6 text-sm text-gray-600">Caricamento…</main>;
@@ -914,13 +1000,16 @@ export default function MapPage() {
           fitView
           fitViewOptions={{ padding: 0.2 }}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
+          minZoom={0.1}
+          nodesDraggable={true}
           nodesConnectable={false}
           zoomOnDoubleClick={false}
           onPaneClick={cancelEdit}
+          onNodeDragStop={onNodeDragStop}
         >
           <Background />
           <Controls />
+          <FitViewOnLoad nodeCount={nodes.length} />
         </ReactFlow>
       </div>
 
