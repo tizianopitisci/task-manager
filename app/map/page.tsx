@@ -456,6 +456,17 @@ function FitViewOnLoad({ nodeCount }: { nodeCount: number }) {
   return null;
 }
 
+// Sincronizza il layout calcolato (useMemo) nello store interno di ReactFlow.
+// Viene chiamato solo quando i task/posizioni cambiano, MAI durante il drag
+// (perché in modalità uncontrolled non ci sono React state update durante il drag).
+function NodeSyncer({ nodes }: { nodes: Node[] }) {
+  const { setNodes } = useReactFlow();
+  useEffect(() => {
+    setNodes(nodes);
+  }, [nodes, setNodes]);
+  return null;
+}
+
 export default function MapPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
 
@@ -476,6 +487,7 @@ export default function MapPage() {
 
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
+
 
   // ---- auth guard ----
   useEffect(() => {
@@ -950,6 +962,7 @@ export default function MapPage() {
     [tasks],
   );
 
+
   if (!sessionChecked) {
     return <main className="min-h-screen bg-white p-6 text-sm text-gray-600">Caricamento…</main>;
   }
@@ -994,10 +1007,9 @@ export default function MapPage() {
 
       <div className="flex-1">
         <ReactFlow
-          nodes={nodes}
+          defaultNodes={[]}
           edges={edges}
           nodeTypes={{ taskNode: TaskNode, rootText: RootTextNode }}
-          fitView
           fitViewOptions={{ padding: 0.2 }}
           proOptions={{ hideAttribution: true }}
           minZoom={0.1}
@@ -1010,6 +1022,7 @@ export default function MapPage() {
           <Background />
           <Controls />
           <FitViewOnLoad nodeCount={nodes.length} />
+          <NodeSyncer nodes={nodes} />
         </ReactFlow>
       </div>
 
