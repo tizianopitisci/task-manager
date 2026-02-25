@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
-import ReactFlow, { Controls, Background, Handle, Position, useReactFlow } from "reactflow";
+import ReactFlow, { Controls, Handle, Position, useReactFlow, Panel } from "reactflow";
 import type { Node, Edge, NodeProps } from "reactflow";
 import "reactflow/dist/style.css";
 import { DateTime } from "luxon";
@@ -981,7 +981,7 @@ export default function MapPage() {
   }
 
   return (
-    <main className="h-screen flex flex-col bg-white">
+    <main className="h-screen w-screen">
       <style>{`
         .react-flow__edge-path { stroke: #000 !important; stroke-opacity: 1 !important; stroke-linecap: round !important; stroke-width: 3 !important; }
         .ProseMirror p { margin: 0 0 10px 0; }
@@ -989,25 +989,7 @@ export default function MapPage() {
         .ProseMirror ol { margin: 0 0 10px 18px; }
       `}</style>
 
-      <div className="border-b bg-white p-3">
-        <div className="flex items-center gap-3">
-          <div className="font-semibold">Task Manager</div>
-
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
-            Mostra completati
-          </label>
-
-          <button onClick={logout} className="rounded-xl border border-gray-300 px-3 py-2 text-sm">
-            Logout
-          </button>
-
-        </div>
-
-        {error ? <div className="mt-2 text-sm text-red-700">Errore: {error}</div> : null}
-      </div>
-
-      <div className="flex-1">
+      <div style={{ width: "100%", height: "100%" }}>
         <ReactFlow
           defaultNodes={[]}
           edges={edges}
@@ -1021,10 +1003,28 @@ export default function MapPage() {
           onPaneClick={cancelEdit}
           onNodeDragStop={onNodeDragStop}
         >
-          <Background />
           <Controls />
           <FitViewOnLoad nodeCount={nodes.length} />
           <NodeSyncer nodes={nodes} />
+          <Panel position="top-right">
+            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 shadow-sm text-sm backdrop-blur-sm">
+              <label className="flex cursor-pointer items-center gap-1.5 text-gray-600">
+                <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+                Completati
+              </label>
+              <div className="h-4 w-px bg-gray-200" />
+              <button onClick={logout} className="text-gray-500 hover:text-gray-800">
+                Logout
+              </button>
+            </div>
+          </Panel>
+          {error && (
+            <Panel position="top-left">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                Errore: {error}
+              </div>
+            </Panel>
+          )}
         </ReactFlow>
       </div>
 
