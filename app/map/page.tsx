@@ -36,6 +36,7 @@ type RootNodeData = {
   onCommit: (label: string) => void;
   onCancel: () => void;
   fanCount: number;
+  onAddRoot: () => void;
 };
 
 type TaskNodeData = {
@@ -249,7 +250,17 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
           className="w-[260px] border-b border-gray-400 bg-transparent text-4xl font-semibold italic outline-none"
         />
       ) : (
-        <div className="text-5xl font-semibold italic tracking-wide text-black">{data.label}</div>
+        <div className="flex items-center gap-2">
+          <div className="text-5xl font-semibold italic tracking-wide text-black">{data.label}</div>
+          <button
+            type="button"
+            className="nodrag rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"
+            title="Aggiungi task principale"
+            onClick={(e) => { e.stopPropagation(); data.onAddRoot(); }}
+          >
+            ＋
+          </button>
+        </div>
       )}
     </div>
   );
@@ -473,8 +484,6 @@ export default function MapPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const [newRootTitle, setNewRootTitle] = useState("");
-
   const [editingId, setEditingId] = useState<string | null>(null);
   const [rootEditing, setRootEditing] = useState(false);
   const [rootLabel, setRootLabel] = useState("OGGI");
@@ -575,19 +584,22 @@ export default function MapPage() {
 
   const addRootTask = async () => {
     setError(null);
-    const title = newRootTitle.trim() || "Nuovo task";
 
     const roots = tasks.filter((t) => !t.parent_id);
     const nextSort = roots.length ? Math.max(...roots.map((r) => r.sort_order ?? 0)) + 1 : 0;
 
-    const { error } = await supabase.from("tasks").insert({ title, parent_id: null, completed: false, sort_order: nextSort, notes: "" });
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({ title: "Nuovo task", parent_id: null, completed: false, sort_order: nextSort, notes: "" })
+      .select("id")
+      .single();
     if (error) {
       setError(error.message);
       return;
     }
 
-    setNewRootTitle("");
     await load();
+    if (data?.id) setEditingId(data.id);
   };
 
   const addChild = async (parentId: string) => {
@@ -872,6 +884,7 @@ export default function MapPage() {
         onCommit: commitRoot,
         onCancel: cancelEdit,
         fanCount,
+        onAddRoot: addRootTask,
       },
     };
 
@@ -989,17 +1002,6 @@ export default function MapPage() {
             Logout
           </button>
 
-          <div className="ml-auto flex items-center gap-2">
-            <input
-              value={newRootTitle}
-              onChange={(e) => setNewRootTitle(e.target.value)}
-              placeholder="Nuovo task principale…"
-              className="w-[280px] rounded-xl border border-gray-300 px-3 py-2 text-sm"
-            />
-            <button onClick={addRootTask} className="rounded-xl border border-gray-300 px-3 py-2 text-sm">
-              Aggiungi
-            </button>
-          </div>
         </div>
 
         {error ? <div className="mt-2 text-sm text-red-700">Errore: {error}</div> : null}
