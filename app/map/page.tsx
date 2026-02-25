@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
-import ReactFlow, { Controls, Background, Handle, Position, useReactFlow } from "reactflow";
-import type { Node, Edge, NodeProps } from "reactflow";
+import ReactFlow, { Controls, Background, Handle, Position, useReactFlow, applyNodeChanges } from "reactflow";
+import type { Node, Edge, NodeProps, NodeChange } from "reactflow";
 import "reactflow/dist/style.css";
 import { DateTime } from "luxon";
 import { supabase } from "../../lib/supabaseClient";
@@ -477,6 +477,9 @@ export default function MapPage() {
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
 
+  // nodi "live" passati a ReactFlow — sincronizzati dal useMemo e aggiornati in tempo reale durante il drag
+  const [displayNodes, setDisplayNodes] = useState<Node[]>([]);
+
   // ---- auth guard ----
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -950,6 +953,17 @@ export default function MapPage() {
     [tasks],
   );
 
+  // Sincronizza displayNodes ogni volta che il layout calcolato cambia
+  // (es. reload dopo riordinamento, aggiunta/rimozione task)
+  useEffect(() => {
+    setDisplayNodes(nodes);
+  }, [nodes]);
+
+  // Aggiorna displayNodes ad ogni frame durante il drag → movimento fluido
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setDisplayNodes((nds) => applyNodeChanges(changes, nds));
+  }, []);
+
   if (!sessionChecked) {
     return <main className="min-h-screen bg-white p-6 text-sm text-gray-600">Caricamento…</main>;
   }
@@ -994,7 +1008,8 @@ export default function MapPage() {
 
       <div className="flex-1">
         <ReactFlow
-          nodes={nodes}
+          nodes={displayNodes}
+          onNodesChange={onNodesChange}
           edges={edges}
           nodeTypes={{ taskNode: TaskNode, rootText: RootTextNode }}
           fitView
