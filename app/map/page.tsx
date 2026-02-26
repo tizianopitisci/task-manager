@@ -457,8 +457,9 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   );
 });
 
-// Chiama fitView una volta sola, dopo che i task sono stati caricati e i nodi misurati
-function FitViewOnLoad({ nodeCount }: { nodeCount: number }) {
+// Chiama fitView una volta sola, dopo che i task sono stati caricati e i nodi misurati;
+// oppure ogni volta che fitViewTrigger viene incrementato (es. dopo l'aggiunta di un task).
+function FitViewOnLoad({ nodeCount, fitViewTrigger }: { nodeCount: number; fitViewTrigger: number }) {
   const { fitView } = useReactFlow();
   const fitted = useRef(false);
   useEffect(() => {
@@ -467,6 +468,11 @@ function FitViewOnLoad({ nodeCount }: { nodeCount: number }) {
       setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 50);
     }
   }, [nodeCount, fitView]);
+  useEffect(() => {
+    if (fitViewTrigger > 0) {
+      setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 150);
+    }
+  }, [fitViewTrigger, fitView]);
   return null;
 }
 
@@ -496,6 +502,9 @@ export default function MapPage() {
 
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
+
+  // incrementato per forzare fitView dopo l'aggiunta di un task
+  const [fitViewTrigger, setFitViewTrigger] = useState(0);
 
 
 
@@ -604,6 +613,7 @@ export default function MapPage() {
 
     await load();
     if (data?.id) setEditingId(data.id);
+    setFitViewTrigger((n) => n + 1);
   }, [tasks]);
 
   const addChild = async (parentId: string) => {
@@ -626,6 +636,7 @@ export default function MapPage() {
 
     await load();
     if (data?.id) setEditingId(data.id);
+    setFitViewTrigger((n) => n + 1);
   };
 
   const toggleCompletedCascade = async (id: string) => {
@@ -1009,7 +1020,7 @@ export default function MapPage() {
           onNodeDragStop={onNodeDragStop}
         >
           <Controls />
-          <FitViewOnLoad nodeCount={nodes.length} />
+          <FitViewOnLoad nodeCount={nodes.length} fitViewTrigger={fitViewTrigger} />
           <NodeSyncer nodes={nodes} />
           <Panel position="top-right">
             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 shadow-sm text-sm backdrop-blur-sm">
