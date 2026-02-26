@@ -116,6 +116,7 @@ function stripHtmlToOneLine(html: string | null): string {
 }
 
 // ================= NOTES UI =================
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function NotesToolbar({ editor }: { editor: any }) {
   if (!editor) return null;
 
@@ -177,7 +178,6 @@ function NotesModal({
 
   useEffect(() => {
     if (editor) editor.commands.setContent(initialContent || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialContent, editor]);
 
   if (!open) return null;
@@ -208,6 +208,7 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
   const [draft, setDraft] = useState(data.label);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setDraft(data.label), [data.label]);
 
   useEffect(() => {
@@ -271,7 +272,9 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dueDraft, setDueDraft] = useState<string>(isoToDateInput(data.dueAt));
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setDraft(data.title), [data.title]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setDueDraft(isoToDateInput(data.dueAt)), [data.dueAt]);
 
   useEffect(() => {
@@ -515,6 +518,7 @@ export default function MapPage() {
     };
   }, []);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const savedLabel = window.localStorage.getItem(LS_ROOT_LABEL);
     if (savedLabel && savedLabel.trim()) setRootLabel(savedLabel.trim());
@@ -526,6 +530,7 @@ export default function MapPage() {
     const sc = window.localStorage.getItem(LS_SHOW_COMPLETED);
     setShowCompleted(sc === "true");
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     window.localStorage.setItem(LS_EXPANDED, JSON.stringify(expanded));
@@ -557,6 +562,7 @@ export default function MapPage() {
 
   useEffect(() => {
     if (!sessionChecked) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [sessionChecked]);
 
@@ -580,7 +586,7 @@ export default function MapPage() {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, notes: notesHtml } : t)));
   };
 
-  const addRootTask = async () => {
+  const addRootTask = useCallback(async () => {
     setError(null);
 
     const roots = tasks.filter((t) => !t.parent_id);
@@ -598,7 +604,7 @@ export default function MapPage() {
 
     await load();
     if (data?.id) setEditingId(data.id);
-  };
+  }, [tasks]);
 
   const addChild = async (parentId: string) => {
     setError(null);
@@ -728,6 +734,7 @@ export default function MapPage() {
     return tasks.find((t) => t.id === notesTaskId) ?? null;
   }, [tasks, notesTaskId]);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const { nodes, edges } = useMemo(() => {
     const tasksById = new Map(visibleTasks.map((t) => [t.id, t] as const));
 
@@ -895,7 +902,7 @@ export default function MapPage() {
       source,
       target,
       sourceHandle,
-      type: "bezier",
+      type: "default",
       style: { stroke: "#000000", strokeWidth: isRootEdge ? 4 : 3, strokeOpacity: 1, strokeLinecap: "round" },
     });
 
