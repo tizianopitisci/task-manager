@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/casa-summary",
-      "schedule": "5 5 * * 1"
+      "schedule": "30 20 * * 0"
     }
   ]
 }

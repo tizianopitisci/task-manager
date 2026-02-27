@@ -20,6 +20,7 @@ type Task = {
   sort_order: number;
   notes: string | null;
   owner_id: string | null;
+  completed_at: string | null;
 };
 
 const ROOT_ID = "ROOT_NODE";
@@ -565,7 +566,7 @@ export default function MapPage() {
   const load = async () => {
     const { data, error } = await supabase
       .from("tasks")
-      .select("id,title,parent_id,completed,due_at,sort_order,notes,owner_id")
+      .select("id,title,parent_id,completed,due_at,sort_order,notes,owner_id,completed_at")
       .order("sort_order", { ascending: true });
 
     if (error) {
@@ -678,7 +679,8 @@ export default function MapPage() {
     }
 
     setError(null);
-    const { error } = await supabase.from("tasks").update({ completed: nextCompleted }).in("id", toUpdate);
+    const completedAt = nextCompleted ? new Date().toISOString() : null;
+    const { error } = await supabase.from("tasks").update({ completed: nextCompleted, completed_at: completedAt }).in("id", toUpdate);
     if (error) {
       setError(error.message);
       return;

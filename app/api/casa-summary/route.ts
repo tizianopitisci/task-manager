@@ -8,6 +8,7 @@ type Task = {
   title: string;
   parent_id: string | null;
   completed: boolean;
+  completed_at: string | null;
 };
 
 // Restituisce tutti i discendenti di un nodo (ricorsivo)
@@ -21,7 +22,7 @@ function getDescendants(allTasks: Task[], parentId: string): Task[] {
   return result;
 }
 
-// Costruisce una lista HTML annidata mostrando solo i task completati,
+// Costruisce una lista HTML annidata mostrando solo i task completati questa settimana,
 // rispettando la gerarchia originale
 function buildHtmlList(allTasks: Task[], completedIds: Set<string>, parentId: string): string {
   const children = allTasks.filter(
@@ -29,7 +30,7 @@ function buildHtmlList(allTasks: Task[], completedIds: Set<string>, parentId: st
   );
   if (children.length === 0) return "";
 
-  const items = children
+  return children
     .map((t) => {
       const nested = buildHtmlList(allTasks, completedIds, t.id);
       return `<li style="margin-bottom:6px;">
@@ -38,8 +39,6 @@ function buildHtmlList(allTasks: Task[], completedIds: Set<string>, parentId: st
       </li>`;
     })
     .join("");
-
-  return items;
 }
 
 export async function GET() {
@@ -50,10 +49,14 @@ export async function GET() {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const resend = new Resend(resendKey);
 
-  // Carica tutti i task
+  const nowRome = DateTime.now().setZone("Europe/Rome").setLocale("it");
+  // Inizio settimana corrente (lunedì 00:00 ora italiana)
+  const startOfWeek = nowRome.startOf("week").toUTC().toISO()!;
+
+  // Carica tutti i task con completed_at
   const { data: rawTasks, error } = await supabase
     .from("tasks")
-    .select("id,title,parent_id,completed")
+    .select("id,title,parent_id,completed,completed_at")
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -69,33 +72,37 @@ export async function GET() {
     return NextResponse.json({ ok: true, sent: false, message: 'Nodo "CASA" non trovato' });
   }
 
-  // Tutti i discendenti di CASA
+  // Tutti i discendenti di CASA completati QUESTA settimana
   const descendants = getDescendants(allTasks, casaNode.id);
+  const completedThisWeek = descendants.filter(
+    (t) => t.completed && t.completed_at && t.completed_at >= startOfWeek
+  );
 
-  // Filtra solo i completati
-  const completed = descendants.filter((t) => t.completed);
-
-  if (completed.length === 0) {
-    return NextResponse.json({ ok: true, sent: false, message: "Nessun task completato sotto CASA" });
+  if (completedThisWeek.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      sent: false,
+      message: "Nessun task completato questa settimana sotto CASA",
+    });
   }
 
-  const completedIds = new Set(completed.map((t) => t.id));
-
-  const nowRome = DateTime.now().setZone("Europe/Rome").setLocale("it");
-  const weekStart = nowRome.startOf("week").toFormat("d MMM");
-  const weekEnd = nowRome.endOf("week").toFormat("d MMM yyyy");
-
+  const completedIds = new Set(completedThisWeek.map((t) => t.id));
   const listHtml = buildHtmlList(allTasks, completedIds, casaNode.id);
 
   const html = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;">
-      <h1 style="font-size:20px;margin-bottom:4px;">🏠 Task CASA completati</h1>
-      <p style="color:#666;margin-top:0;">Settimana del ${weekStart} – ${weekEnd}</p>
-      <ul style="padding-left:20px;line-height:1.6;">
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;line-height:1.6;">
+      <p>Ciao Chiara,</p>
+      <p>ecco cosa ha fatto questa settimana Tiziano per la casa.</p>
+
+      <ul style="padding-left:20px;margin:20px 0;">
         ${listHtml}
       </ul>
-      <p style="margin-top:24px;color:#999;font-size:12px;">
-        Totale: ${completed.length} task completat${completed.length === 1 ? "o" : "i"}
+
+      <p>Dimostra la tua gratitudine a Tiziano con un &ldquo;grazie&rdquo;. 😊</p>
+
+      <p style="margin-top:32px;color:#999;font-size:12px;">
+        Settimana del ${nowRome.startOf("week").toFormat("d MMM")} – ${nowRome.endOf("week").toFormat("d MMM yyyy")}
+        &nbsp;·&nbsp; ${completedThisWeek.length} task completat${completedThisWeek.length === 1 ? "o" : "i"}
       </p>
     </div>
   `;
@@ -103,7 +110,7 @@ export async function GET() {
   const { error: mailErr } = await resend.emails.send({
     from: "Task Manager <onboarding@resend.dev>",
     to: ["tizianopitisci@gmail.com", "chiaradominelli@gmail.com"],
-    subject: `🏠 Task CASA completati — ${completed.length} task`,
+    subject: `🏠 Tiziano ha completato ${completedThisWeek.length} task per la casa questa settimana`,
     html,
   });
 
@@ -111,5 +118,5 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: mailErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, sent: true, completedCount: completed.length });
+  return NextResponse.json({ ok: true, sent: true, completedCount: completedThisWeek.length });
 }
