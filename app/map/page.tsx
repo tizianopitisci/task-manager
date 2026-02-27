@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, memo } from "react";
 import ReactFlow, { Controls, Handle, Position, useReactFlow, Panel } from "reactflow";
 import type { Node, Edge, NodeProps } from "reactflow";
 import "reactflow/dist/style.css";
@@ -255,9 +255,10 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
           <div className="text-5xl font-semibold italic tracking-wide text-black">{data.label}</div>
           <button
             type="button"
-            className="nodrag rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"
+            className="nodrag nopan rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"
             title="Aggiungi task principale"
-            onClick={(e) => { e.stopPropagation(); data.onAddRoot(); }}
+            style={{ pointerEvents: "all" }}
+            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); data.onAddRoot(); }}
           >
             ＋
           </button>
@@ -486,6 +487,7 @@ function NodeSyncer({ nodes }: { nodes: Node[] }) {
 
 export default function MapPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -506,6 +508,9 @@ export default function MapPage() {
   // incrementato per forzare fitView dopo l'aggiunta di un task
   const [fitViewTrigger, setFitViewTrigger] = useState(0);
 
+  // Ref stabile per addRootTask: evita stale closure nei nodi ReactFlow (uncontrolled mode)
+  const addRootTaskRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
 
 
   // ---- auth guard ----
@@ -515,6 +520,7 @@ export default function MapPage() {
         window.location.href = "/login";
         return;
       }
+      setUserId(data.session.user.id);
       setSessionChecked(true);
     });
 
@@ -603,7 +609,7 @@ export default function MapPage() {
 
     const { data, error } = await supabase
       .from("tasks")
-      .insert({ title: "Nuovo task", parent_id: null, completed: false, sort_order: nextSort, notes: "" })
+      .insert({ title: "Nuovo task", parent_id: null, completed: false, sort_order: nextSort, notes: "", owner_id: userId })
       .select("id")
       .single();
     if (error) {
@@ -614,7 +620,11 @@ export default function MapPage() {
     await load();
     if (data?.id) setEditingId(data.id);
     setFitViewTrigger((n) => n + 1);
-  }, [tasks]);
+  }, [tasks, userId]);
+
+  // Aggiorna il ref dopo ogni render (useLayoutEffect = prima del paint, dopo DOM update)
+  useLayoutEffect(() => { addRootTaskRef.current = addRootTask; });
+  const stableAddRootTask = useCallback(() => { addRootTaskRef.current(); }, []);
 
   const addChild = async (parentId: string) => {
     setError(null);
@@ -625,7 +635,7 @@ export default function MapPage() {
 
     const { data, error } = await supabase
       .from("tasks")
-      .insert({ title: "Nuovo sotto-task", parent_id: parentId, completed: false, sort_order: nextSort, notes: "" })
+      .insert({ title: "Nuovo sotto-task", parent_id: parentId, completed: false, sort_order: nextSort, notes: "", owner_id: userId })
       .select("id")
       .single();
 
@@ -893,6 +903,7 @@ export default function MapPage() {
       targetPosition: Position.Left,
       draggable: false,
       selectable: false,
+      style: { pointerEvents: "all" },
       data: {
         label: rootLabel,
         isEditing: rootEditing,
@@ -900,7 +911,7 @@ export default function MapPage() {
         onCommit: commitRoot,
         onCancel: cancelEdit,
         fanCount,
-        onAddRoot: addRootTask,
+        onAddRoot: stableAddRootTask,
       },
     };
 

@@ -8,7 +8,8 @@ export function middleware(request: NextRequest) {
 
   // Se la richiesta arriva da un dominio diverso da quello canonico,
   // redireziona mantenendo path e query string
-  if (hostname && hostname !== CANONICAL_DOMAIN) {
+  const isLocal = hostname.startsWith("localhost") || hostname.startsWith("127.0.0.1");
+  if (hostname && hostname !== CANONICAL_DOMAIN && !isLocal) {
     const url = request.nextUrl.clone();
     url.host = CANONICAL_DOMAIN;
     url.port = "";
