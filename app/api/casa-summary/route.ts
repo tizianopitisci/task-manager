@@ -109,7 +109,7 @@ export async function GET() {
 
   const { error: mailErr } = await resend.emails.send({
     from: "Task Manager <onboarding@resend.dev>",
-    to: ["tizianopitisci@gmail.com", "chiaradominelli@gmail.com"],
+    to: ["tizianopitisci@gmail.com"], // aggiungere chiaradominelli@gmail.com dopo verifica su Resend
     subject: `🏠 Tiziano ha completato ${completedThisWeek.length} task per la casa questa settimana`,
     html,
   });
