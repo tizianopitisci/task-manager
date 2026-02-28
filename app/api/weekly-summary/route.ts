@@ -1,15 +1,14 @@
 import { DateTime } from "luxon";
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { BrevoClient } from "@getbrevo/brevo";
 import { createClient } from "@supabase/supabase-js";
 
 export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  const resendKey = process.env.RESEND_API_KEY!;
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
-  const resend = new Resend(resendKey);
+  const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY! });
 
   const nowRome = DateTime.now().setZone("Europe/Rome");
   const startOfToday = nowRome.startOf("day").toUTC().toISO()!;
@@ -75,15 +74,15 @@ export async function GET() {
     </div>
   `;
 
-  const { error: mailErr } = await resend.emails.send({
-    from: "Task Manager <onboarding@resend.dev>",
-    to: ["tizianopitisci@gmail.com"],
-    subject: `📅 Riepilogo settimanale — ${dueList.length} in scadenza, ${overdueList.length} scaduti`,
-    html,
-  });
-
-  if (mailErr) {
-    return NextResponse.json({ ok: false, error: mailErr.message }, { status: 500 });
+  try {
+    await brevo.transactionalEmails.sendTransacEmail({
+      sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
+      to: [{ email: "tizianopitisci@gmail.com" }],
+      subject: `📅 Riepilogo settimanale — ${dueList.length} in scadenza, ${overdueList.length} scaduti`,
+      htmlContent: html,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ ok: false, error: err?.message ?? "Unknown error" }, { status: 500 });
   }
 
   return NextResponse.json({
