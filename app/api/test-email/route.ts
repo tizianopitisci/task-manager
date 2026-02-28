@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import { BrevoClient } from "@getbrevo/brevo";
 
 export async function GET() {
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY! });
 
-  const { error } = await resend.emails.send({
-    from: "Task Manager <onboarding@resend.dev>",
-    to: ["tizianopitisci@gmail.com"],
-    subject: "Test email Task Manager",
-    html: "<p>Se leggi questa email, l’invio funziona 🎉</p>",
-  });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error }, { status: 500 });
+  try {
+    await client.transactionalEmails.sendTransacEmail({
+      sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
+      to: [{ email: "tizianopitisci@gmail.com" }],
+      subject: "Test email Task Manager",
+      htmlContent: "<p>Se leggi questa email, l’invio funziona 🎉</p>",
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    return NextResponse.json({ ok: false, error: err?.message ?? "Unknown error" }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true });
 }
