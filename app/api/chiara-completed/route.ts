@@ -74,12 +74,24 @@ export async function GET() {
 
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;line-height:1.6;">
-      <p>Ciao Chiara,</p>
-      <p>ecco i task che hai completato questa settimana.</p>
+      <p>Ciao Chiara! 🌟</p>
+      <p>
+        Questa settimana hai fatto un lavoro fantastico — hai completato
+        <strong>${completedByChiara.length} task</strong> e ogni cosa che hai fatto
+        fa la differenza. Che si tratti di piccole commissioni o di impegni più grandi,
+        il tuo contributo è prezioso e non passa inosservato. Grazie per l'energia e
+        la dedizione che metti in tutto quello che fai! 💪
+      </p>
 
-      <ul style="padding-left:20px;margin:20px 0;">
+      <p style="margin:20px 0 8px;font-weight:600;">Ecco cosa hai portato a termine:</p>
+      <ul style="padding-left:20px;margin:0 0 24px 0;">
         ${listHtml}
       </ul>
+
+      <p>
+        Continua così — sei una forza! Ogni task completato è un piccolo traguardo
+        di cui andare fiera. Alla prossima settimana! 🎉
+      </p>
 
       <p style="margin-top:32px;color:#999;font-size:12px;">
         Ultimi 7 giorni &nbsp;·&nbsp; ${completedByChiara.length} task completat${completedByChiara.length === 1 ? "o" : "i"}
