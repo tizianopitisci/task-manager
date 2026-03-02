@@ -50,7 +50,7 @@ export async function GET() {
   // Task in scadenza questa settimana (da oggi a domenica)
   const { data: dueThisWeek, error: err1 } = await supabase
     .from("tasks")
-    .select("id,title,due_at,parent_id")
+    .select("id,title,due_at,parent_id,assignee")
     .eq("completed", false)
     .gte("due_at", startOfToday)
     .lte("due_at", endOfWeek)
@@ -63,7 +63,7 @@ export async function GET() {
   // Task scaduti e non completati
   const { data: overdue, error: err2 } = await supabase
     .from("tasks")
-    .select("id,title,due_at,parent_id")
+    .select("id,title,due_at,parent_id,assignee")
     .eq("completed", false)
     .lt("due_at", startOfToday)
     .order("due_at", { ascending: true });
@@ -72,56 +72,85 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: err2.message }, { status: 500 });
   }
 
-  const dueList = dueThisWeek ?? [];
-  const overdueList = overdue ?? [];
+  const allDue = dueThisWeek ?? [];
+  const allOverdue = overdue ?? [];
 
-  if (dueList.length === 0 && overdueList.length === 0) {
+  // Dividi per destinatario: Tiziano = non assegnato o assegnato a tiziano, Chiara = assignee=chiara
+  const isChiara = (t: { assignee?: string | null }) => t.assignee === "chiara";
+  const isTiziano = (t: { assignee?: string | null }) => !isChiara(t);
+
+  const dueTiz = allDue.filter(isTiziano);
+  const overdueTiz = allOverdue.filter(isTiziano);
+  const dueChiara = allDue.filter(isChiara);
+  const overdueChiara = allOverdue.filter(isChiara);
+
+  if (allDue.length === 0 && allOverdue.length === 0) {
     return NextResponse.json({ ok: true, sent: false, message: "Nessun task da segnalare" });
   }
 
   const formatDate = (iso: string) =>
     DateTime.fromISO(iso).setZone("Europe/Rome").setLocale("it").toFormat("EEE d MMM");
 
-  const dueSection =
-    dueList.length > 0
+  const buildSections = (
+    dueList: typeof allDue,
+    overdueList: typeof allOverdue
+  ) => {
+    const weekLabel = `${nowRome.startOf("week").setLocale("it").toFormat("d MMM")} – ${nowRome.endOf("week").setLocale("it").toFormat("d MMM yyyy")}`;
+    const dueSection = dueList.length > 0
       ? `<h2 style="margin:24px 0 8px;font-size:16px;">📌 In scadenza questa settimana</h2>
          <ul style="margin:0;padding-left:20px;">
            ${dueList.map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)} — ${formatDate(t.due_at)}</li>`).join("")}
-         </ul>`
-      : "";
-
-  const overdueSection =
-    overdueList.length > 0
+         </ul>` : "";
+    const overdueSection = overdueList.length > 0
       ? `<h2 style="margin:24px 0 8px;font-size:16px;">⚠️ Scaduti e non completati</h2>
          <ul style="margin:0;padding-left:20px;">
            ${overdueList.map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)} — scaduto il ${formatDate(t.due_at)}</li>`).join("")}
-         </ul>`
-      : "";
-
-  const html = `
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;">
+         </ul>` : "";
+    return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;">
       <h1 style="font-size:20px;margin-bottom:4px;">📅 Riepilogo settimanale task</h1>
-      <p style="color:#666;margin-top:0;">Settimana del ${nowRome.startOf("week").setLocale("it").toFormat("d MMM")} – ${nowRome.endOf("week").setLocale("it").toFormat("d MMM yyyy")}</p>
-      ${dueSection}
-      ${overdueSection}
-    </div>
-  `;
+      <p style="color:#666;margin-top:0;">Settimana del ${weekLabel}</p>
+      ${dueSection}${overdueSection}
+    </div>`;
+  };
 
-  try {
-    await brevo.transactionalEmails.sendTransacEmail({
-      sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
-      to: [{ email: "tizianopitisci@gmail.com" }],
-      subject: `📅 Riepilogo settimanale — ${dueList.length} in scadenza, ${overdueList.length} scaduti`,
-      htmlContent: html,
-    });
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err?.message ?? "Unknown error" }, { status: 500 });
+  const errors: string[] = [];
+
+  // Email a Tiziano
+  if (dueTiz.length > 0 || overdueTiz.length > 0) {
+    try {
+      await brevo.transactionalEmails.sendTransacEmail({
+        sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
+        to: [{ email: "tizianopitisci@gmail.com" }],
+        subject: `📅 Riepilogo settimanale — ${dueTiz.length} in scadenza, ${overdueTiz.length} scaduti`,
+        htmlContent: buildSections(dueTiz, overdueTiz),
+      });
+    } catch (err: any) {
+      errors.push(err?.message ?? "Errore email Tiziano");
+    }
+  }
+
+  // Email a Chiara
+  if (dueChiara.length > 0 || overdueChiara.length > 0) {
+    try {
+      await brevo.transactionalEmails.sendTransacEmail({
+        sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
+        to: [{ email: "chiaradominelli@gmail.com" }],
+        subject: `📅 I tuoi task della settimana — ${dueChiara.length} in scadenza, ${overdueChiara.length} scaduti`,
+        htmlContent: buildSections(dueChiara, overdueChiara),
+      });
+    } catch (err: any) {
+      errors.push(err?.message ?? "Errore email Chiara");
+    }
+  }
+
+  if (errors.length > 0) {
+    return NextResponse.json({ ok: false, errors }, { status: 500 });
   }
 
   return NextResponse.json({
     ok: true,
     sent: true,
-    dueThisWeek: dueList.length,
-    overdue: overdueList.length,
+    dueThisWeek: allDue.length,
+    overdue: allOverdue.length,
   });
 }

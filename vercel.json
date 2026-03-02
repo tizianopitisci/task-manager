@@ -11,6 +11,10 @@
     {
       "path": "/api/casa-summary",
       "schedule": "30 20 * * 0"
+    },
+    {
+      "path": "/api/chiara-completed",
+      "schedule": "0 6 * * 3"
     }
   ]
 }

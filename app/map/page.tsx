@@ -21,6 +21,7 @@ type Task = {
   notes: string | null;
   owner_id: string | null;
   completed_at: string | null;
+  assignee: string | null;
 };
 
 const ROOT_ID = "ROOT_NODE";
@@ -68,6 +69,8 @@ type TaskNodeData = {
 
   onSetDue: (id: string, dateISO: string | null) => void;
   onOpenNotes: (id: string) => void;
+  onSetAssignee: (id: string, assignee: string | null) => void;
+  assignee: string | null;
 
   // nessun callback DnD: il drag è gestito nativamente da ReactFlow
 };
@@ -403,6 +406,24 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
 
               <button
                 type="button"
+                className={
+                  data.assignee === "chiara"
+                    ? "shrink-0 rounded-lg border border-purple-400 bg-purple-50 px-2 py-0.5 text-xs text-purple-700"
+                    : data.isTopLevel
+                    ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white/50"
+                    : "shrink-0 rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-400"
+                }
+                title={data.assignee === "chiara" ? "Assegnato a Chiara — clicca per rimuovere" : "Assegna a Chiara"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  data.onSetAssignee(data.id, data.assignee === "chiara" ? null : "chiara");
+                }}
+              >
+                {data.assignee === "chiara" ? "👤 Chiara" : "👤"}
+              </button>
+
+              <button
+                type="button"
                 className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
                 title="Elimina (con sotto-task)"
                 onClick={(e) => {
@@ -566,7 +587,7 @@ export default function MapPage() {
   const load = async () => {
     const { data, error } = await supabase
       .from("tasks")
-      .select("id,title,parent_id,completed,due_at,sort_order,notes,owner_id,completed_at")
+      .select("id,title,parent_id,completed,due_at,sort_order,notes,owner_id,completed_at,assignee")
       .order("sort_order", { ascending: true });
 
     if (error) {
@@ -590,6 +611,13 @@ export default function MapPage() {
       return;
     }
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, due_at: dueISO } : t)));
+  };
+
+  const setAssignee = async (id: string, assignee: string | null) => {
+    setError(null);
+    const { error } = await supabase.from("tasks").update({ assignee }).eq("id", id);
+    if (error) { setError(error.message); return; }
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, assignee } : t)));
   };
 
   const saveNotes = async (id: string, notesHtml: string) => {
@@ -893,6 +921,8 @@ export default function MapPage() {
               setNotesTaskId(id);
               setNotesOpen(true);
             },
+            onSetAssignee: setAssignee,
+            assignee: t.assignee,
             // nessun callback drag: gestito da onNodeDragStop su ReactFlow
           },
         };
