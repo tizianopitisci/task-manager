@@ -864,6 +864,7 @@ export default function MapPage() {
         return {
           id: t.id,
           type: "taskNode",
+          dragHandle: ".drag-handle",
           position: manualPositions[t.id] ?? { x: depth * xGap, y: (yUnits.get(t.id) ?? 0) * yGap },
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
