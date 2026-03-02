@@ -3,6 +3,30 @@ import { NextResponse } from "next/server";
 import { BrevoClient } from "@getbrevo/brevo";
 import { createClient } from "@supabase/supabase-js";
 
+function buildPath(
+  taskId: string,
+  allTasks: { id: string; title: string; parent_id: string | null }[]
+): string {
+  const byId = new Map(allTasks.map((t) => [t.id, t]));
+  const path: string[] = [];
+  let cur = byId.get(taskId);
+  const seen = new Set<string>();
+  while (cur) {
+    if (seen.has(cur.id)) break;
+    seen.add(cur.id);
+    path.unshift(cur.title);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  // Ultime voce in grassetto, antenati in grigio
+  return path
+    .map((title, i) =>
+      i === path.length - 1
+        ? `<strong>${title}</strong>`
+        : `<span style="color:#888">${title}</span>`
+    )
+    .join(' <span style="color:#bbb">→</span> ');
+}
+
 export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -14,10 +38,19 @@ export async function GET() {
   const startOfToday = nowRome.startOf("day").toUTC().toISO()!;
   const endOfWeek = nowRome.endOf("week").toUTC().toISO()!;
 
+  // Carica tutti i task per costruire la gerarchia
+  const { data: allTasksRaw, error: errAll } = await supabase
+    .from("tasks")
+    .select("id,title,parent_id");
+  if (errAll) {
+    return NextResponse.json({ ok: false, error: errAll.message }, { status: 500 });
+  }
+  const allTasks = (allTasksRaw ?? []) as { id: string; title: string; parent_id: string | null }[];
+
   // Task in scadenza questa settimana (da oggi a domenica)
   const { data: dueThisWeek, error: err1 } = await supabase
     .from("tasks")
-    .select("id,title,due_at")
+    .select("id,title,due_at,parent_id")
     .eq("completed", false)
     .gte("due_at", startOfToday)
     .lte("due_at", endOfWeek)
@@ -30,7 +63,7 @@ export async function GET() {
   // Task scaduti e non completati
   const { data: overdue, error: err2 } = await supabase
     .from("tasks")
-    .select("id,title,due_at")
+    .select("id,title,due_at,parent_id")
     .eq("completed", false)
     .lt("due_at", startOfToday)
     .order("due_at", { ascending: true });
@@ -53,7 +86,7 @@ export async function GET() {
     dueList.length > 0
       ? `<h2 style="margin:24px 0 8px;font-size:16px;">📌 In scadenza questa settimana</h2>
          <ul style="margin:0;padding-left:20px;">
-           ${dueList.map((t) => `<li style="margin-bottom:6px;"><strong>${t.title}</strong> — ${formatDate(t.due_at)}</li>`).join("")}
+           ${dueList.map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)} — ${formatDate(t.due_at)}</li>`).join("")}
          </ul>`
       : "";
 
@@ -61,7 +94,7 @@ export async function GET() {
     overdueList.length > 0
       ? `<h2 style="margin:24px 0 8px;font-size:16px;">⚠️ Scaduti e non completati</h2>
          <ul style="margin:0;padding-left:20px;">
-           ${overdueList.map((t) => `<li style="margin-bottom:6px;"><strong>${t.title}</strong> — scaduto il ${formatDate(t.due_at)}</li>`).join("")}
+           ${overdueList.map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)} — scaduto il ${formatDate(t.due_at)}</li>`).join("")}
          </ul>`
       : "";
 
