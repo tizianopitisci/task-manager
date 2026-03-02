@@ -22,23 +22,25 @@ function getDescendants(allTasks: Task[], parentId: string): Task[] {
   return result;
 }
 
-// Costruisce una lista HTML annidata mostrando solo i task completati questa settimana,
-// rispettando la gerarchia originale
-function buildHtmlList(allTasks: Task[], completedIds: Set<string>, parentId: string): string {
-  const children = allTasks.filter(
-    (t) => t.parent_id === parentId && completedIds.has(t.id)
-  );
-  if (children.length === 0) return "";
-
-  return children
-    .map((t) => {
-      const nested = buildHtmlList(allTasks, completedIds, t.id);
-      return `<li style="margin-bottom:6px;">
-        ✅ <strong>${t.title}</strong>
-        ${nested ? `<ul style="margin:6px 0 0 0;padding-left:20px;">${nested}</ul>` : ""}
-      </li>`;
-    })
-    .join("");
+// Costruisce il percorso completo padre → figlio per un task
+function buildPath(taskId: string, allTasks: Task[]): string {
+  const byId = new Map(allTasks.map((t) => [t.id, t]));
+  const path: string[] = [];
+  let cur = byId.get(taskId);
+  const seen = new Set<string>();
+  while (cur) {
+    if (seen.has(cur.id)) break;
+    seen.add(cur.id);
+    path.unshift(cur.title);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return path
+    .map((title, i) =>
+      i === path.length - 1
+        ? `✅ <strong>${title}</strong>`
+        : `<span style="color:#888">${title}</span>`
+    )
+    .join(' <span style="color:#bbb">→</span> ');
 }
 
 export async function GET() {
@@ -85,8 +87,9 @@ export async function GET() {
     });
   }
 
-  const completedIds = new Set(completedThisWeek.map((t) => t.id));
-  const listHtml = buildHtmlList(allTasks, completedIds, casaNode.id);
+  const listHtml = completedThisWeek
+    .map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)}</li>`)
+    .join("");
 
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;line-height:1.6;">
@@ -97,7 +100,7 @@ export async function GET() {
         ${listHtml}
       </ul>
 
-      <p>Dimostra la tua gratitudine a Tiziano con un &ldquo;grazie&rdquo;. 😊</p>
+      <p>Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊</p>
 
       <p style="margin-top:32px;color:#999;font-size:12px;">
         Settimana del ${nowRome.startOf("week").toFormat("d MMM")} – ${nowRome.endOf("week").toFormat("d MMM yyyy")}
