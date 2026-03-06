@@ -106,7 +106,7 @@ export async function GET() {
         { email: "chiaradominelli@gmail.com" },
         { email: "tizianopitisci@gmail.com" },
       ],
-      subject: `✅ Chiara ha completato ${completedByChiara.length} task questa settimana`,
+      subject: `✅ Chiara ha completato ${completedByChiara.length} task negli ultimi giorni`,
       htmlContent: html,
     });
   } catch (err: any) {
