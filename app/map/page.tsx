@@ -31,6 +31,7 @@ const LS_SHOW_COMPLETED = "taskManager.showCompleted";
 const LS_FONT = "taskManager.mapFont";
 const LS_BG_COLOR = "taskManager.mapBgColor";
 const LS_ACCENT_COLOR = "taskManager.mapAccentColor";
+const LS_CHILD_COLOR = "taskManager.mapChildColor";
 
 // ================= SETTINGS =================
 const FONT_OPTIONS = [
@@ -39,6 +40,11 @@ const FONT_OPTIONS = [
   { label: "Kalam",               value: "var(--font-kalam)" },
   { label: "Indie Flower",        value: "var(--font-indie-flower)" },
   { label: "Architects Daughter", value: "var(--font-architects-daughter)" },
+  { label: "Permanent Marker",    value: "var(--font-permanent-marker)" },
+  { label: "Shadows Into Light",  value: "var(--font-shadows-into-light)" },
+  { label: "Gloria Hallelujah",   value: "var(--font-gloria-hallelujah)" },
+  { label: "Dancing Script",      value: "var(--font-dancing-script)" },
+  { label: "Amatic SC",           value: "var(--font-amatic-sc)" },
 ] as const;
 
 const BG_COLORS = [
@@ -59,6 +65,15 @@ const ACCENT_COLORS = [
   { label: "Viola",     value: "#4a1560" },
   { label: "Mogano",    value: "#4e1a00" },
   { label: "Ardesia",   value: "#2d3748" },
+] as const;
+
+const CHILD_COLORS = [
+  { label: "Bianco",    value: "#ffffff" },
+  { label: "Grigio",    value: "#f5f5f5" },
+  { label: "Giallo",    value: "#fffde7" },
+  { label: "Cielo",     value: "#e8f4f8" },
+  { label: "Menta",     value: "#e8f5e9" },
+  { label: "Lavanda",   value: "#f3e5f5" },
 ] as const;
 
 type ExpandedMap = Record<string, boolean>;
@@ -106,6 +121,7 @@ type TaskNodeData = {
   onSetAssignee: (id: string, assignee: string | null) => void;
   assignee: string | null;
   nodeAccentColor: string;
+  nodeChildColor: string;
 
   // nessun callback DnD: il drag è gestito nativamente da ReactFlow
 };
@@ -328,7 +344,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
 
   const wrapperClass = data.isTopLevel
     ? ["relative min-w-[240px] max-w-[460px] rounded-2xl px-4 py-3 text-white shadow-sm", data.completed ? "opacity-60" : ""].join(" ")
-    : ["relative min-w-[260px] max-w-[460px] rounded-xl border bg-white px-3 py-2 shadow-sm", data.completed ? "opacity-60" : "", data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
+    : ["relative min-w-[260px] max-w-[460px] rounded-xl border px-3 py-2 shadow-sm", data.completed ? "opacity-60" : "", data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
 
   const dueLabel = useMemo(() => {
     if (!data.dueAt) return null;
@@ -344,7 +360,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   return (
     <div
       className={wrapperClass}
-      style={data.isTopLevel ? { backgroundColor: data.nodeAccentColor } : undefined}
+      style={{ backgroundColor: data.isTopLevel ? data.nodeAccentColor : data.nodeChildColor }}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -571,6 +587,7 @@ export default function MapPage() {
   const [mapFont, setMapFont] = useState("var(--font-patrick-hand)");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
+  const [nodeChildColor, setNodeChildColor] = useState("#ffffff");
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
@@ -624,6 +641,8 @@ export default function MapPage() {
     if (savedBg) setBgColor(savedBg);
     const savedAccent = window.localStorage.getItem(LS_ACCENT_COLOR);
     if (savedAccent) setNodeAccentColor(savedAccent);
+    const savedChild = window.localStorage.getItem(LS_CHILD_COLOR);
+    if (savedChild) setNodeChildColor(savedChild);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -647,6 +666,10 @@ export default function MapPage() {
   useEffect(() => {
     window.localStorage.setItem(LS_ACCENT_COLOR, nodeAccentColor);
   }, [nodeAccentColor]);
+
+  useEffect(() => {
+    window.localStorage.setItem(LS_CHILD_COLOR, nodeChildColor);
+  }, [nodeChildColor]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -992,6 +1015,7 @@ export default function MapPage() {
             onCancel: cancelEdit,
             onSelect: (id) => setSelectedNodeId(id),
             nodeAccentColor,
+            nodeChildColor,
             onSetDue: setDue,
             onOpenNotes: (id) => {
               setNotesTaskId(id);
@@ -1050,7 +1074,7 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, rootLabel, rootEditing, expanded, manualPositions]);
+  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootLabel, rootEditing, expanded, manualPositions]);
 
   // ---- drag-to-reorder via ReactFlow nativo ----
   // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
@@ -1167,7 +1191,7 @@ export default function MapPage() {
               {/* Pannello settings */}
               {settingsOpen && (
                 <div
-                  className="w-72 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm"
+                  className="w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[80vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Font */}
@@ -1193,7 +1217,7 @@ export default function MapPage() {
 
                   {/* Sfondo */}
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Sfondo</div>
-                  <div className="mb-4 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {BG_COLORS.map((c) => (
                       <button
                         key={c.value}
@@ -1208,9 +1232,25 @@ export default function MapPage() {
                       />
                     ))}
                   </div>
+                  <div className="mt-2 mb-4 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(bgColor) ? bgColor : "#ffffff"}
+                      onChange={(e) => setBgColor(e.target.value)}
+                      className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
+                    />
+                    <input
+                      type="text"
+                      value={bgColor}
+                      maxLength={7}
+                      placeholder="#ffffff"
+                      onChange={(e) => setBgColor(e.target.value)}
+                      className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                    />
+                  </div>
 
-                  {/* Colore nodi */}
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Colore nodi</div>
+                  {/* Colore nodi principali */}
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Nodi principali</div>
                   <div className="flex flex-wrap gap-2">
                     {ACCENT_COLORS.map((c) => (
                       <button
@@ -1225,6 +1265,56 @@ export default function MapPage() {
                         onClick={() => setNodeAccentColor(c.value)}
                       />
                     ))}
+                  </div>
+                  <div className="mt-2 mb-4 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(nodeAccentColor) ? nodeAccentColor : "#000000"}
+                      onChange={(e) => setNodeAccentColor(e.target.value)}
+                      className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
+                    />
+                    <input
+                      type="text"
+                      value={nodeAccentColor}
+                      maxLength={7}
+                      placeholder="#000000"
+                      onChange={(e) => setNodeAccentColor(e.target.value)}
+                      className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                    />
+                  </div>
+
+                  {/* Colore nodi figli */}
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Nodi figli</div>
+                  <div className="flex flex-wrap gap-2">
+                    {CHILD_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        title={c.label}
+                        className={[
+                          "h-7 w-7 rounded-full border-2 transition-transform",
+                          nodeChildColor === c.value ? "border-gray-400 scale-110" : "border-gray-200 hover:border-gray-400",
+                        ].join(" ")}
+                        style={{ backgroundColor: c.value }}
+                        onClick={() => setNodeChildColor(c.value)}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(nodeChildColor) ? nodeChildColor : "#ffffff"}
+                      onChange={(e) => setNodeChildColor(e.target.value)}
+                      className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
+                    />
+                    <input
+                      type="text"
+                      value={nodeChildColor}
+                      maxLength={7}
+                      placeholder="#ffffff"
+                      onChange={(e) => setNodeChildColor(e.target.value)}
+                      className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                    />
                   </div>
                 </div>
               )}
