@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Caveat } from "next/font/google";
+import { Patrick_Hand } from "next/font/google";
 import "./globals.css";
 
-const caveat = Caveat({
+const caveat = Patrick_Hand({
   variable: "--font-caveat",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: "400",
 });
 
 export const metadata: Metadata = {
