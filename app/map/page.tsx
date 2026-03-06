@@ -54,6 +54,7 @@ type TaskNodeData = {
 
   isEditing: boolean;
   isTopLevel: boolean;
+  isSelected: boolean;
 
   hasChildren: boolean;
   isExpanded: boolean;
@@ -66,6 +67,7 @@ type TaskNodeData = {
   onStartEdit: (id: string) => void;
   onCommit: (id: string, title: string) => void;
   onCancel: () => void;
+  onSelect: (id: string) => void;
 
   onSetDue: (id: string, dateISO: string | null) => void;
   onOpenNotes: (id: string) => void;
@@ -312,9 +314,13 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
+        data.onSelect(data.id);
         data.onStartEdit(data.id);
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        data.onSelect(data.id);
+      }}
     >
       {data.hasChildren ? (
         <button
@@ -355,6 +361,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
         </button>
 
         <div className="nodrag min-w-0 flex-1">
+          {/* Riga titolo + badge scadenza */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               {data.isEditing ? (
@@ -376,104 +383,108 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-2">
-              {!data.isTopLevel && dueLabel ? <span className={["shrink-0 rounded-lg border px-2 py-0.5 text-xs", badgeClass].join(" ")}>{dueLabel}</span> : null}
-
-              <button
-                type="button"
-                className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
-                title={notesHasContent ? "Apri note (già presenti)" : "Apri note"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  data.onOpenNotes(data.id);
-                }}
-              >
-                {notesHasContent ? "📝" : "✎"}
-              </button>
-
-              <button
-                type="button"
-                className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
-                title="Aggiungi sotto-task"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  data.onAddChild(data.id);
-                }}
-              >
-                ＋
-              </button>
-
-              <button
-                type="button"
-                className={
-                  data.assignee === "chiara"
-                    ? "shrink-0 rounded-lg border border-purple-400 bg-purple-50 px-2 py-0.5 text-xs text-purple-700"
-                    : data.isTopLevel
-                    ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white/50"
-                    : "shrink-0 rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-400"
-                }
-                title={data.assignee === "chiara" ? "Assegnato a Chiara — clicca per rimuovere" : "Assegna a Chiara"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  data.onSetAssignee(data.id, data.assignee === "chiara" ? null : "chiara");
-                }}
-              >
-                {data.assignee === "chiara" ? "👤 Chiara" : "👤"}
-              </button>
-
-              <button
-                type="button"
-                className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
-                title="Elimina (con sotto-task)"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  data.onDelete(data.id);
-                }}
-              >
-                🗑
-              </button>
-            </div>
+            {!data.isTopLevel && dueLabel ? <span className={["shrink-0 rounded-lg border px-2 py-0.5 text-xs", badgeClass].join(" ")}>{dueLabel}</span> : null}
           </div>
 
-          <div className={data.isTopLevel ? "mt-2 flex items-center gap-2 text-xs text-white/80" : "mt-2 flex items-center gap-2 text-xs text-gray-600"}>
-            <span className={data.isTopLevel ? "text-white/70" : "text-gray-500"}>Scadenza</span>
+          {/* Azioni — visibili solo quando il nodo è selezionato */}
+          {data.isSelected && (
+            <>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
+                  title={notesHasContent ? "Apri note (già presenti)" : "Apri note"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onOpenNotes(data.id);
+                  }}
+                >
+                  {notesHasContent ? "📝" : "✎"}
+                </button>
 
-            <input
-              type="date"
-              value={dueDraft}
-              onChange={(e) => setDueDraft(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              className={data.isTopLevel ? "rounded-lg border border-white/25 bg-white/10 px-2 py-1 text-xs text-white outline-none" : "rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-none"}
-            />
+                <button
+                  type="button"
+                  className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
+                  title="Aggiungi sotto-task"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onAddChild(data.id);
+                  }}
+                >
+                  ＋
+                </button>
 
-            <button
-              type="button"
-              className={data.isTopLevel ? "rounded-lg border border-white/25 bg-white/10 px-2 py-1 text-xs text-white" : "rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs"}
-              onClick={(e) => {
-                e.stopPropagation();
-                data.onSetDue(data.id, dateInputToDueISO(dueDraft));
-              }}
-            >
-              Salva
-            </button>
+                <button
+                  type="button"
+                  className={
+                    data.assignee === "chiara"
+                      ? "shrink-0 rounded-lg border border-purple-400 bg-purple-50 px-2 py-0.5 text-xs text-purple-700"
+                      : data.isTopLevel
+                      ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white/50"
+                      : "shrink-0 rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-400"
+                  }
+                  title={data.assignee === "chiara" ? "Assegnato a Chiara — clicca per rimuovere" : "Assegna a Chiara"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onSetAssignee(data.id, data.assignee === "chiara" ? null : "chiara");
+                  }}
+                >
+                  {data.assignee === "chiara" ? "👤 Chiara" : "👤"}
+                </button>
 
-            <button
-              type="button"
-              className={data.isTopLevel ? "rounded-lg border border-white/25 bg-white/10 px-2 py-1 text-xs text-white/90" : "rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700"}
-              onClick={(e) => {
-                e.stopPropagation();
-                setDueDraft("");
-                data.onSetDue(data.id, null);
-              }}
-            >
-              Rimuovi
-            </button>
-          </div>
+                <button
+                  type="button"
+                  className={data.isTopLevel ? "shrink-0 rounded-lg border border-white/25 bg-white/10 px-2 py-0.5 text-xs text-white" : "shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"}
+                  title="Elimina (con sotto-task)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onDelete(data.id);
+                  }}
+                >
+                  🗑
+                </button>
+              </div>
 
-          <div className={data.isTopLevel ? "mt-1 flex items-center gap-2 text-xs text-white/70" : "mt-1 flex items-center gap-2 text-xs text-gray-500"}>
-            {data.descendantCount > 0 ? <span>≡ {data.descendantCount}</span> : <span>—</span>}
-          </div>
+              <div className={data.isTopLevel ? "mt-2 flex items-center gap-2 text-xs text-white/80" : "mt-2 flex items-center gap-2 text-xs text-gray-600"}>
+                <span className={data.isTopLevel ? "text-white/70" : "text-gray-500"}>Scadenza</span>
+
+                <input
+                  type="date"
+                  value={dueDraft}
+                  onChange={(e) => setDueDraft(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className={data.isTopLevel ? "rounded-lg border border-white/25 bg-white/10 px-2 py-1 text-xs text-white outline-none" : "rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-none"}
+                />
+
+                <button
+                  type="button"
+                  className={data.isTopLevel ? "rounded-lg border border-white/25 bg-white/10 px-2 py-1 text-xs text-white" : "rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    data.onSetDue(data.id, dateInputToDueISO(dueDraft));
+                  }}
+                >
+                  Salva
+                </button>
+
+                <button
+                  type="button"
+                  className={data.isTopLevel ? "rounded-lg border border-white/25 bg-white/10 px-2 py-1 text-xs text-white/90" : "rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDueDraft("");
+                    data.onSetDue(data.id, null);
+                  }}
+                >
+                  Rimuovi
+                </button>
+              </div>
+
+              <div className={data.isTopLevel ? "mt-1 flex items-center gap-2 text-xs text-white/70" : "mt-1 flex items-center gap-2 text-xs text-gray-500"}>
+                {data.descendantCount > 0 ? <span>≡ {data.descendantCount}</span> : null}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -520,6 +531,8 @@ export default function MapPage() {
 
   const [expanded, setExpanded] = useState<ExpandedMap>({ [ROOT_ID]: true });
   const [showCompleted, setShowCompleted] = useState(false);
+
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
@@ -769,6 +782,7 @@ export default function MapPage() {
   const cancelEdit = () => {
     setEditingId(null);
     setRootEditing(false);
+    setSelectedNodeId(null);
   };
 
   const logout = async () => {
@@ -907,6 +921,7 @@ export default function MapPage() {
             isOverdue,
             isEditing: editingId === t.id,
             isTopLevel,
+            isSelected: selectedNodeId === t.id,
             hasChildren: hasChildren(t.id),
             isExpanded: isExpandedLocal(t.id),
             onToggleExpand: toggleExpand,
@@ -916,6 +931,7 @@ export default function MapPage() {
             onStartEdit: (id) => setEditingId(id),
             onCommit: commitTaskTitle,
             onCancel: cancelEdit,
+            onSelect: (id) => setSelectedNodeId(id),
             onSetDue: setDue,
             onOpenNotes: (id) => {
               setNotesTaskId(id);
@@ -974,7 +990,7 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, rootLabel, rootEditing, expanded, manualPositions]);
+  }, [visibleTasks, tasks, editingId, selectedNodeId, rootLabel, rootEditing, expanded, manualPositions]);
 
   // ---- drag-to-reorder via ReactFlow nativo ----
   // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
