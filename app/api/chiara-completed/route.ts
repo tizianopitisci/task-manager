@@ -76,7 +76,7 @@ export async function GET() {
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;line-height:1.6;">
       <p>Ciao Chiara! 🌟</p>
       <p>
-        Questa settimana hai fatto un lavoro fantastico — hai completato
+        Negli ultimi giorni hai fatto un lavoro fantastico — hai completato
         <strong>${completedByChiara.length} task</strong> e ogni cosa che hai fatto
         fa la differenza. Che si tratti di piccole commissioni o di impegni più grandi,
         il tuo contributo è prezioso e non passa inosservato. Grazie per l'energia e
@@ -90,7 +90,7 @@ export async function GET() {
 
       <p>
         Continua così — sei una forza! Ogni task completato è un piccolo traguardo
-        di cui andare fiera. Alla prossima settimana! 🎉
+        di cui andare fiera. A presto! 🎉
       </p>
 
       <p style="margin-top:32px;color:#999;font-size:12px;">
