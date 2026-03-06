@@ -28,6 +28,38 @@ const ROOT_ID = "ROOT_NODE";
 const LS_EXPANDED = "taskManager.expandedMap";
 const LS_ROOT_LABEL = "taskManager.rootLabel";
 const LS_SHOW_COMPLETED = "taskManager.showCompleted";
+const LS_FONT = "taskManager.mapFont";
+const LS_BG_COLOR = "taskManager.mapBgColor";
+const LS_ACCENT_COLOR = "taskManager.mapAccentColor";
+
+// ================= SETTINGS =================
+const FONT_OPTIONS = [
+  { label: "Patrick Hand",        value: "var(--font-patrick-hand)" },
+  { label: "Caveat",              value: "var(--font-caveat)" },
+  { label: "Kalam",               value: "var(--font-kalam)" },
+  { label: "Indie Flower",        value: "var(--font-indie-flower)" },
+  { label: "Architects Daughter", value: "var(--font-architects-daughter)" },
+] as const;
+
+const BG_COLORS = [
+  { label: "Bianco",    value: "#ffffff" },
+  { label: "Crema",     value: "#fdf6e3" },
+  { label: "Sabbia",    value: "#f5f0e8" },
+  { label: "Cielo",     value: "#eef2ff" },
+  { label: "Menta",     value: "#eefaf3" },
+  { label: "Pesca",     value: "#fff4ee" },
+  { label: "Rosa",      value: "#fce4ec" },
+  { label: "Giallo",    value: "#fffde7" },
+] as const;
+
+const ACCENT_COLORS = [
+  { label: "Nero",      value: "#000000" },
+  { label: "Navy",      value: "#1e3a5f" },
+  { label: "Foresta",   value: "#1b4332" },
+  { label: "Viola",     value: "#4a1560" },
+  { label: "Mogano",    value: "#4e1a00" },
+  { label: "Ardesia",   value: "#2d3748" },
+] as const;
 
 type ExpandedMap = Record<string, boolean>;
 
@@ -73,6 +105,7 @@ type TaskNodeData = {
   onOpenNotes: (id: string) => void;
   onSetAssignee: (id: string, assignee: string | null) => void;
   assignee: string | null;
+  nodeAccentColor: string;
 
   // nessun callback DnD: il drag è gestito nativamente da ReactFlow
 };
@@ -294,7 +327,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   }, [data.isEditing]);
 
   const wrapperClass = data.isTopLevel
-    ? ["relative min-w-[240px] max-w-[460px] rounded-2xl bg-black px-4 py-3 text-white shadow-sm", data.completed ? "opacity-60" : ""].join(" ")
+    ? ["relative min-w-[240px] max-w-[460px] rounded-2xl px-4 py-3 text-white shadow-sm", data.completed ? "opacity-60" : ""].join(" ")
     : ["relative min-w-[260px] max-w-[460px] rounded-xl border bg-white px-3 py-2 shadow-sm", data.completed ? "opacity-60" : "", data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
 
   const dueLabel = useMemo(() => {
@@ -311,6 +344,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   return (
     <div
       className={wrapperClass}
+      style={data.isTopLevel ? { backgroundColor: data.nodeAccentColor } : undefined}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -533,6 +567,10 @@ export default function MapPage() {
   const [showCompleted, setShowCompleted] = useState(false);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mapFont, setMapFont] = useState("var(--font-patrick-hand)");
+  const [bgColor, setBgColor] = useState("#ffffff");
+  const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
@@ -579,6 +617,13 @@ export default function MapPage() {
 
     const sc = window.localStorage.getItem(LS_SHOW_COMPLETED);
     setShowCompleted(sc === "true");
+
+    const savedFont = window.localStorage.getItem(LS_FONT);
+    if (savedFont) setMapFont(savedFont);
+    const savedBg = window.localStorage.getItem(LS_BG_COLOR);
+    if (savedBg) setBgColor(savedBg);
+    const savedAccent = window.localStorage.getItem(LS_ACCENT_COLOR);
+    if (savedAccent) setNodeAccentColor(savedAccent);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -589,6 +634,19 @@ export default function MapPage() {
   useEffect(() => {
     window.localStorage.setItem(LS_SHOW_COMPLETED, showCompleted ? "true" : "false");
   }, [showCompleted]);
+
+  useEffect(() => {
+    window.localStorage.setItem(LS_FONT, mapFont);
+    document.documentElement.style.setProperty("--map-font", mapFont);
+  }, [mapFont]);
+
+  useEffect(() => {
+    window.localStorage.setItem(LS_BG_COLOR, bgColor);
+  }, [bgColor]);
+
+  useEffect(() => {
+    window.localStorage.setItem(LS_ACCENT_COLOR, nodeAccentColor);
+  }, [nodeAccentColor]);
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
@@ -783,6 +841,7 @@ export default function MapPage() {
     setEditingId(null);
     setRootEditing(false);
     setSelectedNodeId(null);
+    setSettingsOpen(false);
   };
 
   const logout = async () => {
@@ -932,6 +991,7 @@ export default function MapPage() {
             onCommit: commitTaskTitle,
             onCancel: cancelEdit,
             onSelect: (id) => setSelectedNodeId(id),
+            nodeAccentColor,
             onSetDue: setDue,
             onOpenNotes: (id) => {
               setNotesTaskId(id);
@@ -990,7 +1050,7 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, selectedNodeId, rootLabel, rootEditing, expanded, manualPositions]);
+  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, rootLabel, rootEditing, expanded, manualPositions]);
 
   // ---- drag-to-reorder via ReactFlow nativo ----
   // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
@@ -1065,7 +1125,7 @@ export default function MapPage() {
         .ProseMirror ol { margin: 0 0 10px 18px; }
       `}</style>
 
-      <div style={{ width: "100%", height: "100%" }}>
+      <div style={{ width: "100%", height: "100%", backgroundColor: bgColor }}>
         <ReactFlow
           defaultNodes={[]}
           edges={edges}
@@ -1083,15 +1143,91 @@ export default function MapPage() {
           <FitViewOnLoad nodeCount={nodes.length} fitViewTrigger={fitViewTrigger} />
           <NodeSyncer nodes={nodes} />
           <Panel position="top-right">
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 shadow-sm text-sm backdrop-blur-sm">
-              <label className="flex cursor-pointer items-center gap-1.5 text-gray-600">
-                <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
-                Completati
-              </label>
-              <div className="h-4 w-px bg-gray-200" />
-              <button onClick={logout} className="text-gray-500 hover:text-gray-800">
-                Logout
-              </button>
+            <div className="flex flex-col items-end gap-2">
+              {/* Barra controlli */}
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 shadow-sm text-sm backdrop-blur-sm">
+                <label className="flex cursor-pointer items-center gap-1.5 text-gray-600">
+                  <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+                  Completati
+                </label>
+                <div className="h-4 w-px bg-gray-200" />
+                <button
+                  onClick={() => setSettingsOpen((v) => !v)}
+                  className={settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
+                  title="Personalizza"
+                >
+                  🎨
+                </button>
+                <div className="h-4 w-px bg-gray-200" />
+                <button onClick={logout} className="text-gray-500 hover:text-gray-800">
+                  Logout
+                </button>
+              </div>
+
+              {/* Pannello settings */}
+              {settingsOpen && (
+                <div
+                  className="w-72 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Font */}
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Font</div>
+                  <div className="mb-4 flex flex-col gap-1">
+                    {FONT_OPTIONS.map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        style={{ fontFamily: `${f.value}, cursive`, fontSize: 15 }}
+                        className={[
+                          "rounded-lg px-3 py-1.5 text-left transition-colors",
+                          mapFont === f.value
+                            ? "border border-gray-400 bg-gray-100"
+                            : "border border-transparent hover:bg-gray-50",
+                        ].join(" ")}
+                        onClick={() => setMapFont(f.value)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Sfondo */}
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Sfondo</div>
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {BG_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        title={c.label}
+                        className={[
+                          "h-7 w-7 rounded-full border-2 transition-transform",
+                          bgColor === c.value ? "border-gray-500 scale-110" : "border-gray-200 hover:border-gray-400",
+                        ].join(" ")}
+                        style={{ backgroundColor: c.value }}
+                        onClick={() => setBgColor(c.value)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Colore nodi */}
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Colore nodi</div>
+                  <div className="flex flex-wrap gap-2">
+                    {ACCENT_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        title={c.label}
+                        className={[
+                          "h-7 w-7 rounded-full border-2 transition-transform",
+                          nodeAccentColor === c.value ? "border-gray-400 scale-110" : "border-gray-200 hover:border-gray-400",
+                        ].join(" ")}
+                        style={{ backgroundColor: c.value }}
+                        onClick={() => setNodeAccentColor(c.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Panel>
           {error && (
