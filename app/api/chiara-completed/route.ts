@@ -97,6 +97,13 @@ export async function GET(request: Request) {
         di cui andare fiera. A presto! 🎉
       </p>
 
+      <div style="text-align:center;margin:32px 0;">
+        <a href="https://wa.me/${process.env.TIZIANO_WHATSAPP}"
+           style="display:inline-block;background-color:#25D366;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:24px;font-weight:600;font-size:15px;">
+          💬 Scrivimi su WhatsApp
+        </a>
+      </div>
+
       <p style="margin-top:32px;color:#999;font-size:12px;">
         Ultimi 7 giorni &nbsp;·&nbsp; ${completedByChiara.length} task completat${completedByChiara.length === 1 ? "o" : "i"}
       </p>
