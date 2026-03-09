@@ -104,7 +104,14 @@ export async function GET(request: Request) {
         ${listHtml}
       </ul>
 
-      <p>Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊</p>
+      <p>Dimostra la tua gratitudine a Tiziano scrivendogli un messaggio su WhatsApp 💬</p>
+
+      <div style="text-align:center;margin:32px 0;">
+        <a href="https://wa.me/${process.env.TIZIANO_WHATSAPP}"
+           style="display:inline-block;background-color:#25D366;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:24px;font-weight:600;font-size:15px;">
+          💬 Scrivi a Tiziano
+        </a>
+      </div>
 
       <p style="margin-top:32px;color:#999;font-size:12px;">
         Settimana del ${nowRome.startOf("week").toFormat("d MMM")} – ${nowRome.endOf("week").toFormat("d MMM yyyy")}
