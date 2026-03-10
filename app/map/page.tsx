@@ -854,6 +854,16 @@ export default function MapPage() {
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
+  const prevViewMode = useRef<"map" | "list">("map");
+
+  // Re-centra la mappa quando si torna dalla vista email
+  useEffect(() => {
+    if (viewMode === "map" && prevViewMode.current === "list") {
+      const t = setTimeout(() => setFitViewTrigger((n) => n + 1), 200);
+      return () => clearTimeout(t);
+    }
+    prevViewMode.current = viewMode;
+  }, [viewMode]);
 
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
