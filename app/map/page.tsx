@@ -568,6 +568,267 @@ function NodeSyncer({ nodes }: { nodes: Node[] }) {
   return null;
 }
 
+// ================= EMAIL PREVIEW =================
+
+function buildPathText(taskId: string, allTasks: Task[]): string {
+  const byId = new Map(allTasks.map((t) => [t.id, t]));
+  const path: string[] = [];
+  let cur = byId.get(taskId);
+  const seen = new Set<string>();
+  while (cur) {
+    if (seen.has(cur.id)) break;
+    seen.add(cur.id);
+    path.unshift(cur.title);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return path.join(" → ");
+}
+
+function getDescendants(allTasks: Task[], parentId: string): Task[] {
+  const children = allTasks.filter((t) => t.parent_id === parentId);
+  const result: Task[] = [];
+  for (const child of children) {
+    result.push(child);
+    result.push(...getDescendants(allTasks, child.id));
+  }
+  return result;
+}
+
+function EmailPreview({ tasks }: { tasks: Task[] }) {
+  const now = DateTime.now().setZone("Europe/Rome").setLocale("it");
+  const startOfToday = now.startOf("day").toISO()!;
+  const endOfToday = now.endOf("day").toISO()!;
+  const endOfWeek = now.endOf("week").toISO()!;
+  const startOfWeek = now.startOf("week").toISO()!;
+  const sevenDaysAgo = now.minus({ days: 7 }).toISO()!;
+
+  const isChiara = (t: Task) => t.assignee === "chiara";
+  const isTiziano = (t: Task) => !isChiara(t);
+
+  const formatDate = (iso: string) =>
+    DateTime.fromISO(iso).setZone("Europe/Rome").setLocale("it").toFormat("EEE d MMM");
+
+  // 1. Weekly Summary (lun 06:00)
+  const dueThisWeek = tasks.filter(
+    (t) => !t.completed && t.due_at && t.due_at >= startOfToday && t.due_at <= endOfWeek,
+  );
+  const overdue = tasks.filter((t) => !t.completed && t.due_at && t.due_at < startOfToday);
+  const weeklyWouldSend = dueThisWeek.length > 0 || overdue.length > 0;
+
+  // 2. Casa Summary (dom 21:30)
+  const casaNode = tasks.find((t) => !t.parent_id && t.title === "CASA");
+  const casaDesc = casaNode ? getDescendants(tasks, casaNode.id) : [];
+  const casaCompleted = casaDesc.filter(
+    (t) => t.completed && t.completed_at && t.completed_at >= startOfWeek,
+  );
+  const casaWouldSend = casaCompleted.length > 0;
+
+  // 3. Due Alerts (ogni giorno 06:30)
+  const dueToday = tasks.filter(
+    (t) => !t.completed && t.due_at && t.due_at >= startOfToday && t.due_at <= endOfToday,
+  );
+  const dueTodayWouldSend = dueToday.length > 0;
+
+  // 4. Chiara Completed (mer 07:00)
+  const chiaraCompleted = tasks.filter(
+    (t) => t.assignee === "chiara" && t.completed_at && t.completed_at >= sevenDaysAgo,
+  );
+  const chiaraWouldSend = chiaraCompleted.length > 0;
+
+  const weekLabel = `${now.startOf("week").toFormat("d MMM")} – ${now.endOf("week").toFormat("d MMM")}`;
+
+  const Badge = ({ ok }: { ok: boolean }) => (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${ok ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}
+    >
+      {ok ? "✓ partirebbe" : "✗ non partirebbe"}
+    </span>
+  );
+
+  const TaskRow = ({ task, extra }: { task: Task; extra?: string }) => (
+    <div className="flex items-center gap-2 border-b border-gray-50 py-1.5 text-sm last:border-0">
+      <span className="flex-1 text-gray-700">{buildPathText(task.id, tasks)}</span>
+      {task.assignee === "chiara" && (
+        <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs text-purple-600">
+          Chiara
+        </span>
+      )}
+      {extra && <span className="text-xs text-gray-400">{extra}</span>}
+    </div>
+  );
+
+  const Section = ({
+    title,
+    schedule,
+    wouldSend,
+    children,
+  }: {
+    title: string;
+    schedule: string;
+    wouldSend: boolean;
+    children: React.ReactNode;
+  }) => (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-gray-900">{title}</div>
+          <div className="text-xs text-gray-400">{schedule}</div>
+        </div>
+        <Badge ok={wouldSend} />
+      </div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div className="h-full overflow-y-auto bg-gray-50 p-6 pt-16">
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="mb-2 text-xs text-gray-400">
+          Oggi: {now.toFormat("cccc d MMMM yyyy")} — settimana {weekLabel}
+        </div>
+
+        {/* 1. Weekly Summary */}
+        <Section
+          title="📅 Weekly Summary"
+          schedule="Ogni lunedì alle 06:00"
+          wouldSend={weeklyWouldSend}
+        >
+          {!weeklyWouldSend ? (
+            <p className="text-sm italic text-gray-400">
+              Nessun task in scadenza questa settimana né scaduto
+            </p>
+          ) : (
+            <>
+              {dueThisWeek.filter(isTiziano).length > 0 && (
+                <div className="mb-3">
+                  <div className="mb-1 text-xs font-medium text-gray-500">
+                    📌 Tiziano — in scadenza ({dueThisWeek.filter(isTiziano).length})
+                  </div>
+                  {dueThisWeek.filter(isTiziano).map((t) => (
+                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
+                  ))}
+                </div>
+              )}
+              {overdue.filter(isTiziano).length > 0 && (
+                <div className="mb-3">
+                  <div className="mb-1 text-xs font-medium text-red-400">
+                    ⚠️ Tiziano — scaduti ({overdue.filter(isTiziano).length})
+                  </div>
+                  {overdue.filter(isTiziano).map((t) => (
+                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
+                  ))}
+                </div>
+              )}
+              {dueThisWeek.filter(isChiara).length > 0 && (
+                <div className="mb-3">
+                  <div className="mb-1 text-xs font-medium text-purple-500">
+                    📌 Chiara — in scadenza ({dueThisWeek.filter(isChiara).length})
+                  </div>
+                  {dueThisWeek.filter(isChiara).map((t) => (
+                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
+                  ))}
+                </div>
+              )}
+              {overdue.filter(isChiara).length > 0 && (
+                <div className="mb-3">
+                  <div className="mb-1 text-xs font-medium text-red-400">
+                    ⚠️ Chiara — scaduti ({overdue.filter(isChiara).length})
+                  </div>
+                  {overdue.filter(isChiara).map((t) => (
+                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </Section>
+
+        {/* 2. Casa Summary */}
+        <Section
+          title="🏠 Casa Summary"
+          schedule="Ogni domenica alle 21:30"
+          wouldSend={casaWouldSend}
+        >
+          {!casaNode ? (
+            <p className="text-sm italic text-red-400">Nodo "CASA" non trovato</p>
+          ) : !casaWouldSend ? (
+            <p className="text-sm italic text-gray-400">
+              Nessun task sotto CASA completato questa settimana
+            </p>
+          ) : (
+            <div>
+              <div className="mb-1 text-xs font-medium text-gray-500">
+                ✅ Completati questa settimana ({casaCompleted.length})
+              </div>
+              {casaCompleted.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  extra={t.completed_at ? formatDate(t.completed_at) : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* 3. Due Alerts */}
+        <Section
+          title="⏰ Due Alerts"
+          schedule="Ogni giorno alle 06:30"
+          wouldSend={dueTodayWouldSend}
+        >
+          {!dueTodayWouldSend ? (
+            <p className="text-sm italic text-gray-400">Nessun task in scadenza oggi</p>
+          ) : (
+            <div>
+              <div className="mb-1 text-xs font-medium text-gray-500">
+                In scadenza oggi ({dueToday.length})
+              </div>
+              {dueToday.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  extra={
+                    t.due_at
+                      ? DateTime.fromISO(t.due_at).setZone("Europe/Rome").toFormat("HH:mm")
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* 4. Chiara Completed */}
+        <Section
+          title="✅ Chiara Completed"
+          schedule="Ogni mercoledì alle 07:00"
+          wouldSend={chiaraWouldSend}
+        >
+          {!chiaraWouldSend ? (
+            <p className="text-sm italic text-gray-400">
+              Nessun task completato da Chiara negli ultimi 7 giorni
+            </p>
+          ) : (
+            <div>
+              <div className="mb-1 text-xs font-medium text-gray-500">
+                Completati negli ultimi 7 giorni ({chiaraCompleted.length})
+              </div>
+              {chiaraCompleted.map((t) => (
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  extra={t.completed_at ? formatDate(t.completed_at) : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      </div>
+    </div>
+  );
+}
+
 export default function MapPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -591,6 +852,8 @@ export default function MapPage() {
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
+
+  const [viewMode, setViewMode] = useState<"map" | "list">("map");
 
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -1149,6 +1412,25 @@ export default function MapPage() {
         .ProseMirror ol { margin: 0 0 10px 18px; }
       `}</style>
 
+      {/* Toggle vista — fisso in alto al centro */}
+      <div className="fixed left-1/2 top-3 z-50 -translate-x-1/2 overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm text-sm flex">
+        <button
+          onClick={() => setViewMode("map")}
+          className={`px-3 py-1.5 transition-colors ${viewMode === "map" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
+        >
+          🗺 Mappa
+        </button>
+        <button
+          onClick={() => setViewMode("list")}
+          className={`px-3 py-1.5 transition-colors ${viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
+        >
+          📧 Email
+        </button>
+      </div>
+
+      {viewMode === "list" ? (
+        <EmailPreview tasks={tasks} />
+      ) : (
       <div style={{ width: "100%", height: "100%", backgroundColor: bgColor }}>
         <ReactFlow
           defaultNodes={[]}
@@ -1329,6 +1611,7 @@ export default function MapPage() {
           )}
         </ReactFlow>
       </div>
+      )}
 
       <NotesModal
         open={notesOpen && !!notesTask}
