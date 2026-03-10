@@ -854,16 +854,6 @@ export default function MapPage() {
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
-  const prevViewMode = useRef<"map" | "list">("map");
-
-  // Re-centra la mappa quando si torna dalla vista email
-  useEffect(() => {
-    if (viewMode === "map" && prevViewMode.current === "list") {
-      const t = setTimeout(() => setFitViewTrigger((n) => n + 1), 200);
-      return () => clearTimeout(t);
-    }
-    prevViewMode.current = viewMode;
-  }, [viewMode]);
 
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -1414,7 +1404,7 @@ export default function MapPage() {
   }
 
   return (
-    <main className="h-screen w-screen">
+    <main className="relative h-screen w-screen">
       <style>{`
         .react-flow__edge-path { stroke: #000 !important; stroke-opacity: 1 !important; stroke-linecap: round !important; stroke-width: 3 !important; }
         .ProseMirror p { margin: 0 0 10px 0; }
@@ -1438,9 +1428,11 @@ export default function MapPage() {
         </button>
       </div>
 
-      {viewMode === "list" ? (
-        <EmailPreview tasks={tasks} />
-      ) : (
+      {viewMode === "list" && (
+        <div className="absolute inset-0 z-10">
+          <EmailPreview tasks={tasks} />
+        </div>
+      )}
       <div style={{ width: "100%", height: "100%", backgroundColor: bgColor }}>
         <ReactFlow
           defaultNodes={[]}
@@ -1621,7 +1613,6 @@ export default function MapPage() {
           )}
         </ReactFlow>
       </div>
-      )}
 
       <NotesModal
         open={notesOpen && !!notesTask}
