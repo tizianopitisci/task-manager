@@ -9,6 +9,29 @@ function startEndOfTodayRome() {
   return { start: startRome.toUTC().toISO(), end: endRome.toUTC().toISO(), today: startRome.toISODate() };
 }
 
+function buildPath(
+  taskId: string,
+  allTasks: { id: string; title: string; parent_id: string | null }[]
+): string {
+  const byId = new Map(allTasks.map((t) => [t.id, t]));
+  const path: string[] = [];
+  let cur = byId.get(taskId);
+  const seen = new Set<string>();
+  while (cur) {
+    if (seen.has(cur.id)) break;
+    seen.add(cur.id);
+    path.unshift(cur.title);
+    cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+  }
+  return path
+    .map((title, i) =>
+      i === path.length - 1
+        ? `<strong>${title}</strong>`
+        : `<span style="color:#888">${title}</span>`
+    )
+    .join(' <span style="color:#bbb">→</span> ');
+}
+
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
@@ -23,6 +46,14 @@ export async function GET(request: Request) {
 
   const { start, end, today } = startEndOfTodayRome();
 
+  // Carica tutti i task per costruire la gerarchia
+  const { data: allTasksRaw, error: errAll } = await supabase
+    .from("tasks")
+    .select("id,title,parent_id");
+  if (errAll) {
+    return NextResponse.json({ ok: false, error: errAll.message }, { status: 500 });
+  }
+  const allTasks = (allTasksRaw ?? []) as { id: string; title: string; parent_id: string | null }[];
 
   const { data: tasks, error } = await supabase
     .from("tasks")
@@ -42,8 +73,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, sent: 0, message: "Nessuna scadenza oggi (o già notificata)" });
   }
 
-  const formatItem = (t: any) =>
-    `• ${t.title}${t.due_at ? ` (${new Date(t.due_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })})` : ""}`;
+  const formatTime = (iso: string) =>
+    DateTime.fromISO(iso).setZone("Europe/Rome").toFormat("HH:mm");
+
+  const buildHtml = (list: any[], intro: string) => {
+    const items = list
+      .map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)} — ${formatTime(t.due_at)}</li>`)
+      .join("");
+    return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;">
+      <h1 style="font-size:20px;margin-bottom:4px;">⏰ Scadenze di oggi</h1>
+      <p style="color:#666;margin-top:0;">${intro}</p>
+      <ul style="margin:0;padding-left:20px;">${items}</ul>
+    </div>`;
+  };
 
   const tizList = toNotify.filter((t: any) => t.assignee !== "chiara");
   const chiaraList = toNotify.filter((t: any) => t.assignee === "chiara");
@@ -55,8 +97,8 @@ export async function GET(request: Request) {
       await brevo.transactionalEmails.sendTransacEmail({
         sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
         to: [{ email: "tizianopitisci@gmail.com" }],
-        subject: `Scadenze di oggi: ${tizList.length}`,
-        htmlContent: `<p>Task in scadenza oggi:</p><p>${tizList.map(formatItem).join("<br/>")}</p>`,
+        subject: `⏰ Scadenze di oggi: ${tizList.length}`,
+        htmlContent: buildHtml(tizList, `Hai ${tizList.length} task in scadenza oggi.`),
       });
     } catch (err: any) { errors.push(err?.message ?? "Errore email Tiziano"); }
   }
@@ -66,8 +108,8 @@ export async function GET(request: Request) {
       await brevo.transactionalEmails.sendTransacEmail({
         sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
         to: [{ email: "chiaradominelli@gmail.com" }],
-        subject: `I tuoi task di oggi: ${chiaraList.length}`,
-        htmlContent: `<p>Ciao Chiara, hai questi task in scadenza oggi:</p><p>${chiaraList.map(formatItem).join("<br/>")}</p>`,
+        subject: `⏰ I tuoi task di oggi: ${chiaraList.length}`,
+        htmlContent: buildHtml(chiaraList, `Ciao Chiara, hai ${chiaraList.length} task in scadenza oggi.`),
       });
     } catch (err: any) { errors.push(err?.message ?? "Errore email Chiara"); }
   }
