@@ -9,6 +9,7 @@ type Task = {
   parent_id: string | null;
   completed: boolean;
   completed_at: string | null;
+  assignee: string | null;
 };
 
 // Restituisce tutti i discendenti di un nodo (ricorsivo)
@@ -57,7 +58,7 @@ export async function GET() {
   // Carica tutti i task con completed_at
   const { data: rawTasks, error } = await supabase
     .from("tasks")
-    .select("id,title,parent_id,completed,completed_at")
+    .select("id,title,parent_id,completed,completed_at,assignee")
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -76,7 +77,7 @@ export async function GET() {
   // Tutti i discendenti di CASA completati QUESTA settimana
   const descendants = getDescendants(allTasks, casaNode.id);
   const completedThisWeek = descendants.filter(
-    (t) => t.completed && t.completed_at && t.completed_at >= startOfWeek
+    (t) => t.completed && t.completed_at && t.completed_at >= startOfWeek && t.assignee !== "chiara"
   );
 
   if (completedThisWeek.length === 0) {
