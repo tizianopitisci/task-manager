@@ -956,6 +956,15 @@ export default function MapPage() {
     window.localStorage.setItem(`${mapId}.${LS_CHILD_COLOR}`, nodeChildColor);
   }, [nodeChildColor, mapId]);
 
+  const collapseAll = () => {
+    setExpanded((prev) => {
+      const next: ExpandedMap = { [ROOT_ID]: true };
+      Object.keys(prev).forEach((id) => { if (id !== ROOT_ID) next[id] = false; });
+      tasks.forEach((t) => { if (t.id !== ROOT_ID) next[t.id] = false; });
+      return next;
+    });
+  };
+
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
       const cur = prev[id] ?? true;
@@ -1491,6 +1500,10 @@ export default function MapPage() {
                   <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
                   Completati
                 </label>
+                <div className="h-4 w-px bg-gray-200" />
+                <button onClick={collapseAll} className="text-gray-400 hover:text-gray-700" title="Chiudi tutti i nodi">
+                  ⊖
+                </button>
                 <div className="h-4 w-px bg-gray-200" />
                 <button
                   onClick={() => setSettingsOpen((v) => !v)}
