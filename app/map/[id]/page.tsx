@@ -892,21 +892,20 @@ export default function MapPage() {
     };
   }, []);
 
-  // ---- carica nome mappa ----
-  useEffect(() => {
-    if (!mapId) return;
-    supabase.from("maps").select("name").eq("id", mapId).single().then(({ data }) => {
-      if (data?.name) setMapName(data.name);
-    });
-  }, [mapId]);
-
+  // ---- carica nome mappa + impostazioni locali ----
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!mapId) return;
     const pfx = `${mapId}.`;
 
-    const savedLabel = window.localStorage.getItem(pfx + LS_ROOT_LABEL);
-    if (savedLabel && savedLabel.trim()) setRootLabel(savedLabel.trim());
+    // Nome mappa: usato come default per il nodo radice se non salvato
+    supabase.from("maps").select("name").eq("id", mapId).single().then(({ data }) => {
+      if (data?.name) {
+        setMapName(data.name);
+        const savedLabel = window.localStorage.getItem(pfx + LS_ROOT_LABEL);
+        setRootLabel(savedLabel?.trim() || data.name);
+      }
+    });
 
     const savedExpanded = safeParseExpanded(window.localStorage.getItem(pfx + LS_EXPANDED));
     if (savedExpanded[ROOT_ID] === undefined) savedExpanded[ROOT_ID] = true;
