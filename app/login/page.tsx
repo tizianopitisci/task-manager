@@ -12,7 +12,7 @@ export default function LoginPage() {
   useEffect(() => {
     // se già loggato, vai su /map
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = "/map";
+      if (data.session) window.location.href = "/";
     });
   }, []);
 
@@ -26,7 +26,7 @@ export default function LoginPage() {
       setMsg(error.message);
       return;
     }
-    window.location.href = "/map";
+    window.location.href = "/";
   };
 
   return (
