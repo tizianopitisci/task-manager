@@ -571,10 +571,10 @@ function NodeSyncer({ nodes }: { nodes: Node[] }) {
   return null;
 }
 
-// Aggiorna un ref con tutti i nodi ReactFlow misurati (usato per il drag reparenting)
-function RFNodesTracker({ nodesRef }: { nodesRef: React.MutableRefObject<Node[]> }) {
+// Espone getNodes() all'esterno di ReactFlow tramite un ref stabile
+function RFNodesTracker({ getNodesRef }: { getNodesRef: React.MutableRefObject<(() => Node[]) | null> }) {
   const { getNodes } = useReactFlow();
-  useEffect(() => { nodesRef.current = getNodes(); });
+  getNodesRef.current = getNodes; // aggiornato ad ogni render, sempre fresco
   return null;
 }
 
@@ -901,10 +901,10 @@ export default function MapPage() {
 
   // drag-to-reparent
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
-  const rfNodesRef = useRef<Node[]>([]);
+  const getNodesRef = useRef<(() => Node[]) | null>(null);
 
   const onNodeDrag = useCallback((_event: React.MouseEvent, draggedNode: Node) => {
-    const target = findDropTarget(draggedNode, rfNodesRef.current);
+    const target = findDropTarget(draggedNode, getNodesRef.current?.() ?? []);
     setDragTargetId(target);
   }, []);
 
@@ -1432,8 +1432,8 @@ export default function MapPage() {
       setDragTargetId(null);
 
       // ---- reparenting: il nodo è stato rilasciato sopra un altro nodo ----
-      // allCurrentNodes contiene solo il nodo trascinato; usiamo il ref con tutti i nodi
-      const dropTargetId = findDropTarget(draggedNode, rfNodesRef.current);
+      // getNodesRef.current() chiama getNodes() di ReactFlow al momento preciso del drop
+      const dropTargetId = findDropTarget(draggedNode, getNodesRef.current?.() ?? []);
       if (dropTargetId) {
         const newParentId = dropTargetId === ROOT_ID ? null : dropTargetId;
         if (draggedTask.parent_id === newParentId) return; // già figlio di quel nodo
@@ -1562,7 +1562,7 @@ export default function MapPage() {
           <Controls />
           <FitViewOnLoad nodeCount={nodes.length} fitViewTrigger={fitViewTrigger} />
           <NodeSyncer nodes={nodes} />
-          <RFNodesTracker nodesRef={rfNodesRef} />
+          <RFNodesTracker getNodesRef={getNodesRef} />
           <Panel position="top-right">
             <div className="flex flex-col items-end gap-2">
               {/* Barra controlli */}
