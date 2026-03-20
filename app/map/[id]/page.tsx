@@ -1432,7 +1432,8 @@ export default function MapPage() {
       setDragTargetId(null);
 
       // ---- reparenting: il nodo è stato rilasciato sopra un altro nodo ----
-      const dropTargetId = findDropTarget(draggedNode, allCurrentNodes);
+      // allCurrentNodes contiene solo il nodo trascinato; usiamo il ref con tutti i nodi
+      const dropTargetId = findDropTarget(draggedNode, rfNodesRef.current);
       if (dropTargetId) {
         const newParentId = dropTargetId === ROOT_ID ? null : dropTargetId;
         if (draggedTask.parent_id === newParentId) return; // già figlio di quel nodo
