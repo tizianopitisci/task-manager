@@ -87,6 +87,7 @@ type RootNodeData = {
   onCancel: () => void;
   fanCount: number;
   onAddRoot: () => void;
+  isDropTarget: boolean;
 };
 
 type TaskNodeData = {
@@ -123,6 +124,7 @@ type TaskNodeData = {
   assignee: string | null;
   nodeAccentColor: string;
   nodeChildColor: string;
+  isDropTarget: boolean;
 
   // nessun callback DnD: il drag è gestito nativamente da ReactFlow
 };
@@ -281,7 +283,7 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
 
   return (
     <div
-      className="relative select-none"
+      className={["relative select-none rounded-xl px-2 py-1 transition-all", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2 bg-blue-50/30" : ""].join(" ")}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -344,8 +346,8 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   }, [data.isEditing]);
 
   const wrapperClass = data.isTopLevel
-    ? ["relative min-w-[240px] max-w-[460px] rounded-2xl px-4 py-3 text-white shadow-sm", data.completed ? "opacity-60" : ""].join(" ")
-    : ["relative min-w-[260px] max-w-[460px] rounded-xl border px-3 py-2 shadow-sm", data.completed ? "opacity-60" : "", data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
+    ? ["relative min-w-[240px] max-w-[460px] rounded-2xl px-4 py-3 text-white shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2" : ""].join(" ")
+    : ["relative min-w-[260px] max-w-[460px] rounded-xl border px-3 py-2 shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-1 border-blue-400" : data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
 
   const dueLabel = useMemo(() => {
     if (!data.dueAt) return null;
@@ -567,6 +569,42 @@ function NodeSyncer({ nodes }: { nodes: Node[] }) {
     setNodes(nodes);
   }, [nodes, setNodes]);
   return null;
+}
+
+// Aggiorna un ref con tutti i nodi ReactFlow misurati (usato per il drag reparenting)
+function RFNodesTracker({ nodesRef }: { nodesRef: React.MutableRefObject<Node[]> }) {
+  const { getNodes } = useReactFlow();
+  useEffect(() => { nodesRef.current = getNodes(); });
+  return null;
+}
+
+// Restituisce l'id del nodo sotto il centro del nodo trascinato, se esiste
+function findDropTarget(draggedNode: Node, allNodes: Node[]): string | null {
+  const cx = draggedNode.position.x + (draggedNode.width ?? 120) / 2;
+  const cy = draggedNode.position.y + (draggedNode.height ?? 40) / 2;
+  for (const n of allNodes) {
+    if (n.id === draggedNode.id) continue;
+    const w = n.width ?? 120;
+    const h = n.height ?? 40;
+    if (cx >= n.position.x && cx <= n.position.x + w && cy >= n.position.y && cy <= n.position.y + h) {
+      return n.id;
+    }
+  }
+  return null;
+}
+
+// Verifica se targetId è un discendente di ancestorId
+function isDescendantOf(tasks: Task[], ancestorId: string, targetId: string): boolean {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  let cur = byId.get(targetId);
+  const seen = new Set<string>();
+  while (cur?.parent_id) {
+    if (seen.has(cur.parent_id)) break;
+    seen.add(cur.parent_id);
+    if (cur.parent_id === ancestorId) return true;
+    cur = byId.get(cur.parent_id);
+  }
+  return false;
 }
 
 // ================= EMAIL PREVIEW =================
@@ -860,6 +898,15 @@ export default function MapPage() {
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<"map" | "list">("map");
+
+  // drag-to-reparent
+  const [dragTargetId, setDragTargetId] = useState<string | null>(null);
+  const rfNodesRef = useRef<Node[]>([]);
+
+  const onNodeDrag = useCallback((_event: React.MouseEvent, draggedNode: Node) => {
+    const target = findDropTarget(draggedNode, rfNodesRef.current);
+    setDragTargetId(target);
+  }, []);
 
   // posizioni libere salvate dall'utente con il drag
   const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
@@ -1318,6 +1365,7 @@ export default function MapPage() {
             },
             onSetAssignee: setAssignee,
             assignee: t.assignee,
+            isDropTarget: t.id === dragTargetId,
             // nessun callback drag: gestito da onNodeDragStop su ReactFlow
           },
         };
@@ -1340,6 +1388,7 @@ export default function MapPage() {
         onCancel: cancelEdit,
         fanCount,
         onAddRoot: stableAddRootTask,
+        isDropTarget: ROOT_ID === dragTargetId,
       },
     };
 
@@ -1369,7 +1418,7 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootLabel, rootEditing, expanded, manualPositions]);
+  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootLabel, rootEditing, expanded, manualPositions, dragTargetId]);
 
   // ---- drag-to-reorder via ReactFlow nativo ----
   // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
@@ -1379,6 +1428,25 @@ export default function MapPage() {
     async (_event: React.MouseEvent, draggedNode: Node, allCurrentNodes: Node[]) => {
       const draggedTask = tasks.find((t) => t.id === draggedNode.id);
       if (!draggedTask) return;
+
+      setDragTargetId(null);
+
+      // ---- reparenting: il nodo è stato rilasciato sopra un altro nodo ----
+      const dropTargetId = findDropTarget(draggedNode, allCurrentNodes);
+      if (dropTargetId) {
+        const newParentId = dropTargetId === ROOT_ID ? null : dropTargetId;
+        if (draggedTask.parent_id === newParentId) return; // già figlio di quel nodo
+        if (newParentId && isDescendantOf(tasks, draggedTask.id, newParentId)) {
+          setError("Non puoi spostare un nodo su un suo discendente.");
+          return;
+        }
+        setManualPositions((prev) => { const next = { ...prev }; delete next[draggedNode.id]; return next; });
+        setError(null);
+        const { error: err } = await supabase.from("tasks").update({ parent_id: newParentId }).eq("id", draggedTask.id);
+        if (err) { setError(err.message); return; }
+        await load();
+        return;
+      }
 
       // fratelli ordinati per sort_order attuale
       const siblings = tasks
@@ -1487,11 +1555,13 @@ export default function MapPage() {
           nodesConnectable={false}
           zoomOnDoubleClick={false}
           onPaneClick={cancelEdit}
+          onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
         >
           <Controls />
           <FitViewOnLoad nodeCount={nodes.length} fitViewTrigger={fitViewTrigger} />
           <NodeSyncer nodes={nodes} />
+          <RFNodesTracker nodesRef={rfNodesRef} />
           <Panel position="top-right">
             <div className="flex flex-col items-end gap-2">
               {/* Barra controlli */}
