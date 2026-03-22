@@ -12,7 +12,6 @@ type Task = {
   assignee: string | null;
 };
 
-// Restituisce tutti i discendenti di un nodo (ricorsivo)
 function getDescendants(allTasks: Task[], parentId: string): Task[] {
   const children = allTasks.filter((t) => t.parent_id === parentId);
   const result: Task[] = [];
@@ -23,7 +22,6 @@ function getDescendants(allTasks: Task[], parentId: string): Task[] {
   return result;
 }
 
-// Costruisce il percorso completo padre → figlio per un task
 function buildPath(taskId: string, allTasks: Task[]): string {
   const byId = new Map(allTasks.map((t) => [t.id, t]));
   const path: string[] = [];
@@ -44,65 +42,65 @@ function buildPath(taskId: string, allTasks: Task[]): string {
     .join(' <span style="color:#bbb">→</span> ');
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const mapId = parseInt(searchParams.get("mapId") ?? "1");
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY! });
 
+  const { data: cfg } = await supabase
+    .from("email_configs")
+    .select("enabled,subject,intro_text")
+    .eq("map_id", mapId)
+    .eq("type", "casa_summary")
+    .single();
+
+  if (!cfg?.enabled) {
+    return NextResponse.json({ ok: true, sent: false, message: "Email disabilitata per questa mappa" });
+  }
+
   const nowRome = DateTime.now().setZone("Europe/Rome").setLocale("it");
-  // Inizio settimana corrente (lunedì 00:00 ora italiana)
   const startOfWeek = nowRome.startOf("week").toUTC().toISO()!;
 
-  // Carica tutti i task con completed_at
   const { data: rawTasks, error } = await supabase
     .from("tasks")
     .select("id,title,parent_id,completed,completed_at,assignee")
+    .eq("map_id", mapId)
     .order("sort_order", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   const allTasks = (rawTasks ?? []) as Task[];
-
-  // Trova il nodo radice "CASA"
   const casaNode = allTasks.find((t) => !t.parent_id && t.title === "CASA");
 
   if (!casaNode) {
     return NextResponse.json({ ok: true, sent: false, message: 'Nodo "CASA" non trovato' });
   }
 
-  // Tutti i discendenti di CASA completati QUESTA settimana
   const descendants = getDescendants(allTasks, casaNode.id);
   const completedThisWeek = descendants.filter(
     (t) => t.completed && t.completed_at && t.completed_at >= startOfWeek && t.assignee !== "chiara"
   );
 
   if (completedThisWeek.length === 0) {
-    return NextResponse.json({
-      ok: true,
-      sent: false,
-      message: "Nessun task completato questa settimana sotto CASA",
-    });
+    return NextResponse.json({ ok: true, sent: false, message: "Nessun task completato questa settimana sotto CASA" });
   }
 
   const listHtml = completedThisWeek
     .map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)}</li>`)
     .join("");
 
+  const introText = cfg.intro_text || "ecco cosa ha fatto questa settimana Tiziano per la casa.";
+  const subject = cfg.subject || `🏠 Tiziano ha completato ${completedThisWeek.length} task per la casa questa settimana`;
+
   const html = `
     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;line-height:1.6;">
       <p>Ciao Chiara,</p>
-      <p>ecco cosa ha fatto questa settimana Tiziano per la casa.</p>
-
-      <ul style="padding-left:20px;margin:20px 0;">
-        ${listHtml}
-      </ul>
-
+      <p>${introText}</p>
+      <ul style="padding-left:20px;margin:20px 0;">${listHtml}</ul>
       <p>Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊</p>
-
       <p style="margin-top:32px;color:#999;font-size:12px;">
         Settimana del ${nowRome.startOf("week").toFormat("d MMM")} – ${nowRome.endOf("week").toFormat("d MMM yyyy")}
         &nbsp;·&nbsp; ${completedThisWeek.length} task completat${completedThisWeek.length === 1 ? "o" : "i"}
@@ -113,11 +111,8 @@ export async function GET() {
   try {
     await brevo.transactionalEmails.sendTransacEmail({
       sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
-      to: [
-        { email: "tizianopitisci@gmail.com" },
-        { email: "chiaradominelli@gmail.com" },
-      ],
-      subject: `🏠 Tiziano ha completato ${completedThisWeek.length} task per la casa questa settimana`,
+      to: [{ email: "tizianopitisci@gmail.com" }, { email: "chiaradominelli@gmail.com" }],
+      subject,
       htmlContent: html,
     });
   } catch (err: any) {

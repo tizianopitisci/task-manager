@@ -34,6 +34,16 @@ const LS_BG_COLOR = "taskManager.mapBgColor";
 const LS_ACCENT_COLOR = "taskManager.mapAccentColor";
 const LS_CHILD_COLOR = "taskManager.mapChildColor";
 
+// ================= EMAIL SETTINGS =================
+type EmailConfig = { enabled: boolean; subject: string; intro_text: string };
+
+const EMAIL_TYPE_META = [
+  { type: "weekly_summary",   label: "Riepilogo settimanale", schedule: "Lunedì ore 06:00",     defaultSubject: "📅 Riepilogo settimanale",    defaultIntro: "Ecco i task in scadenza questa settimana." },
+  { type: "due_alerts",       label: "Scadenze del giorno",   schedule: "Ogni giorno ore 06:30", defaultSubject: "⏰ Scadenze di oggi",           defaultIntro: "Hai questi task in scadenza oggi." },
+  { type: "casa_summary",     label: "Riepilogo casa",        schedule: "Domenica ore 21:30",    defaultSubject: "🏠 Task casa completati",       defaultIntro: "Ecco cosa ha fatto Tiziano per la casa questa settimana." },
+  { type: "chiara_completed", label: "Completati da Chiara",  schedule: "Mercoledì ore 07:00",   defaultSubject: "✅ Task completati da Chiara",  defaultIntro: "Chiara ha completato questi task negli ultimi giorni." },
+] as const;
+
 // ================= SETTINGS =================
 const FONT_OPTIONS = [
   { label: "Patrick Hand",        value: "var(--font-patrick-hand)" },
@@ -889,6 +899,9 @@ export default function MapPage() {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [emailsOpen, setEmailsOpen] = useState(false);
+  const [emailConfigs, setEmailConfigs] = useState<Record<string, EmailConfig>>({});
+  const [emailSaving, setEmailSaving] = useState(false);
   const [mapFont, setMapFont] = useState("var(--font-patrick-hand)");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
@@ -944,6 +957,15 @@ export default function MapPage() {
   useEffect(() => {
     if (!mapId) return;
     const pfx = `${mapId}.`;
+
+    // Carica configurazioni email
+    supabase.from("email_configs").select("type,enabled,subject,intro_text").eq("map_id", mapId).then(({ data }) => {
+      const cfgMap: Record<string, EmailConfig> = {};
+      (data ?? []).forEach((c: any) => {
+        cfgMap[c.type] = { enabled: c.enabled, subject: c.subject ?? "", intro_text: c.intro_text ?? "" };
+      });
+      setEmailConfigs(cfgMap);
+    });
 
     // Nome mappa: usato come default per il nodo radice se non salvato
     supabase.from("maps").select("name").eq("id", mapId).single().then(({ data }) => {
@@ -1577,7 +1599,15 @@ export default function MapPage() {
                 </button>
                 <div className="h-4 w-px bg-gray-200" />
                 <button
-                  onClick={() => setSettingsOpen((v) => !v)}
+                  onClick={() => { setEmailsOpen((v) => !v); setSettingsOpen(false); }}
+                  className={emailsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
+                  title="Configura email"
+                >
+                  📧
+                </button>
+                <div className="h-4 w-px bg-gray-200" />
+                <button
+                  onClick={() => { setSettingsOpen((v) => !v); setEmailsOpen(false); }}
                   className={settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
                   title="Personalizza"
                 >
@@ -1717,6 +1747,83 @@ export default function MapPage() {
                       className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Pannello email */}
+              {emailsOpen && (
+                <div
+                  className="w-96 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[80vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Configurazione email</div>
+                  {EMAIL_TYPE_META.map(({ type, label, schedule, defaultSubject, defaultIntro }) => {
+                    const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "" };
+                    return (
+                      <div key={type} className="mb-3 rounded-xl border border-gray-100 p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium text-gray-800">{label}</div>
+                            <div className="text-xs text-gray-400">{schedule}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const next = { ...cfg, enabled: !cfg.enabled };
+                              setEmailConfigs((prev) => ({ ...prev, [type]: next }));
+                              supabase.from("email_configs").upsert(
+                                { map_id: mapId, type, enabled: next.enabled, subject: next.subject || null, intro_text: next.intro_text || null },
+                                { onConflict: "map_id,type" }
+                              );
+                            }}
+                            className={`text-xl leading-none ${cfg.enabled ? "text-green-500" : "text-gray-300"}`}
+                          >
+                            {cfg.enabled ? "●" : "○"}
+                          </button>
+                        </div>
+                        {cfg.enabled && (
+                          <div className="mt-3 flex flex-col gap-2">
+                            <div>
+                              <div className="mb-1 text-xs text-gray-500">Oggetto email</div>
+                              <input
+                                type="text"
+                                value={cfg.subject}
+                                onChange={(e) => setEmailConfigs((prev) => ({ ...prev, [type]: { ...cfg, subject: e.target.value } }))}
+                                placeholder={defaultSubject}
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <div className="mb-1 text-xs text-gray-500">Testo introduttivo</div>
+                              <textarea
+                                value={cfg.intro_text}
+                                onChange={(e) => setEmailConfigs((prev) => ({ ...prev, [type]: { ...cfg, intro_text: e.target.value } }))}
+                                placeholder={defaultIntro}
+                                rows={2}
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs resize-none"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={async () => {
+                      setEmailSaving(true);
+                      await Promise.all(
+                        Object.entries(emailConfigs).map(([type, cfg]) =>
+                          supabase.from("email_configs").upsert(
+                            { map_id: mapId, type, enabled: cfg.enabled, subject: cfg.subject || null, intro_text: cfg.intro_text || null },
+                            { onConflict: "map_id,type" }
+                          )
+                        )
+                      );
+                      setEmailSaving(false);
+                    }}
+                    className="mt-1 w-full rounded-lg bg-gray-900 py-1.5 text-xs text-white hover:bg-gray-700"
+                  >
+                    {emailSaving ? "Salvato ✓" : "Salva"}
+                  </button>
                 </div>
               )}
             </div>

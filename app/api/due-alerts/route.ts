@@ -32,39 +32,46 @@ function buildPath(
     .join(' <span style="color:#bbb">→</span> ');
 }
 
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const mapId = parseInt(searchParams.get("mapId") ?? "1");
 
-export async function GET() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const brevo = new BrevoClient({ apiKey: process.env.BREVO_API_KEY! });
 
+  const { data: cfg } = await supabase
+    .from("email_configs")
+    .select("enabled,subject,intro_text")
+    .eq("map_id", mapId)
+    .eq("type", "due_alerts")
+    .single();
+
+  if (!cfg?.enabled) {
+    return NextResponse.json({ ok: true, sent: false, message: "Email disabilitata per questa mappa" });
+  }
+
   const { start, end, today } = startEndOfTodayRome();
 
-  // Carica tutti i task per costruire la gerarchia
   const { data: allTasksRaw, error: errAll } = await supabase
     .from("tasks")
-    .select("id,title,parent_id");
-  if (errAll) {
-    return NextResponse.json({ ok: false, error: errAll.message }, { status: 500 });
-  }
+    .select("id,title,parent_id")
+    .eq("map_id", mapId);
+  if (errAll) return NextResponse.json({ ok: false, error: errAll.message }, { status: 500 });
   const allTasks = (allTasksRaw ?? []) as { id: string; title: string; parent_id: string | null }[];
 
   const { data: tasks, error } = await supabase
     .from("tasks")
     .select("id,title,due_at,alert_sent_on,assignee")
+    .eq("map_id", mapId)
     .eq("completed", false)
     .gte("due_at", start)
     .lte("due_at", end)
     .order("due_at", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   const toNotify = (tasks ?? []).filter((t: any) => t.alert_sent_on !== today);
-
   if (toNotify.length === 0) {
     return NextResponse.json({ ok: true, sent: 0, message: "Nessuna scadenza oggi (o già notificata)" });
   }
@@ -72,20 +79,22 @@ export async function GET() {
   const formatTime = (iso: string) =>
     DateTime.fromISO(iso).setZone("Europe/Rome").toFormat("HH:mm");
 
-  const buildHtml = (list: any[], intro: string) => {
+  const subjectBase = cfg.subject || "⏰ Scadenze di oggi";
+  const customIntro = cfg.intro_text;
+
+  const buildHtml = (list: any[], defaultIntro: string) => {
     const items = list
       .map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)} — ${formatTime(t.due_at)}</li>`)
       .join("");
     return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111;">
-      <h1 style="font-size:20px;margin-bottom:4px;">⏰ Scadenze di oggi</h1>
-      <p style="color:#666;margin-top:0;">${intro}</p>
+      <h1 style="font-size:20px;margin-bottom:4px;">${subjectBase}</h1>
+      <p style="color:#666;margin-top:0;">${customIntro || defaultIntro}</p>
       <ul style="margin:0;padding-left:20px;">${items}</ul>
     </div>`;
   };
 
   const tizList = toNotify.filter((t: any) => t.assignee !== "chiara");
   const chiaraList = toNotify.filter((t: any) => t.assignee === "chiara");
-
   const errors: string[] = [];
 
   if (tizList.length > 0) {
@@ -93,7 +102,7 @@ export async function GET() {
       await brevo.transactionalEmails.sendTransacEmail({
         sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
         to: [{ email: "tizianopitisci@gmail.com" }],
-        subject: `⏰ Scadenze di oggi: ${tizList.length}`,
+        subject: `${subjectBase}: ${tizList.length}`,
         htmlContent: buildHtml(tizList, `Hai ${tizList.length} task in scadenza oggi.`),
       });
     } catch (err: any) { errors.push(err?.message ?? "Errore email Tiziano"); }
@@ -104,15 +113,13 @@ export async function GET() {
       await brevo.transactionalEmails.sendTransacEmail({
         sender: { name: "Task Manager", email: "tizianopitisci@gmail.com" },
         to: [{ email: "chiaradominelli@gmail.com" }],
-        subject: `⏰ I tuoi task di oggi: ${chiaraList.length}`,
+        subject: `${subjectBase}: ${chiaraList.length}`,
         htmlContent: buildHtml(chiaraList, `Ciao Chiara, hai ${chiaraList.length} task in scadenza oggi.`),
       });
     } catch (err: any) { errors.push(err?.message ?? "Errore email Chiara"); }
   }
 
-  if (errors.length > 0) {
-    return NextResponse.json({ ok: false, errors }, { status: 500 });
-  }
+  if (errors.length > 0) return NextResponse.json({ ok: false, errors }, { status: 500 });
 
   await supabase
     .from("tasks")
@@ -120,5 +127,4 @@ export async function GET() {
     .in("id", toNotify.map((t: any) => t.id));
 
   return NextResponse.json({ ok: true, sent: toNotify.length });
-
 }
