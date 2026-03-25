@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   const { data: cfg } = await supabase
     .from("email_configs")
-    .select("enabled,subject,intro_text")
+    .select("enabled,subject,intro_text,outro_text,whatsapp_text")
     .eq("map_id", mapId)
     .eq("type", "casa_summary")
     .single();
@@ -95,6 +95,11 @@ export async function GET(request: Request) {
   const introText = (cfg.intro_text ||
     `Questa settimana Tiziano si è dato da fare per la casa — ha completato {count} task. Ogni piccola cosa conta! 🏠`)
     .replace("{count}", `<strong>${completedThisWeek.length}</strong>`);
+  const outroText = cfg.outro_text || "Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊";
+  const waText = cfg.whatsapp_text ?? "";
+  const whatsappButton = waText
+    ? `<a href="https://wa.me/3927806474" target="_blank" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#25D366;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">📱 ${waText}</a>`
+    : "";
   const subject = cfg.subject || `🏠 Tiziano ha completato ${completedThisWeek.length} task per la casa questa settimana`;
 
   const html = `
@@ -102,7 +107,8 @@ export async function GET(request: Request) {
       <p>Ciao Chiara,</p>
       <p>${introText}</p>
       <ul style="padding-left:20px;margin:20px 0;">${listHtml}</ul>
-      <p>Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊</p>
+      <p>${outroText}</p>
+      ${whatsappButton}
       <p style="margin-top:32px;color:#999;font-size:12px;">
         Settimana del ${nowRome.startOf("week").toFormat("d MMM")} – ${nowRome.endOf("week").toFormat("d MMM yyyy")}
         &nbsp;·&nbsp; ${completedThisWeek.length} task completat${completedThisWeek.length === 1 ? "o" : "i"}

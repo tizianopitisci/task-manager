@@ -35,7 +35,7 @@ const LS_ACCENT_COLOR = "taskManager.mapAccentColor";
 const LS_CHILD_COLOR = "taskManager.mapChildColor";
 
 // ================= EMAIL SETTINGS =================
-type EmailConfig = { enabled: boolean; subject: string; intro_text: string };
+type EmailConfig = { enabled: boolean; subject: string; intro_text: string; outro_text: string; whatsapp_text: string };
 
 const EMAIL_TYPE_META = [
   { type: "weekly_summary",   label: "Riepilogo settimanale", schedule: "Lunedì ore 06:00",     defaultSubject: "📅 Riepilogo settimanale",    defaultIntro: "Ecco i task in scadenza questa settimana." },
@@ -701,9 +701,9 @@ function EmailView({
   };
 
   const saveCfg = async (type: string) => {
-    const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "" };
+    const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "", outro_text: "", whatsapp_text: "" };
     await supabase.from("email_configs").upsert(
-      { map_id: mapId, type, enabled: cfg.enabled, subject: cfg.subject || null, intro_text: cfg.intro_text || null },
+      { map_id: mapId, type, enabled: cfg.enabled, subject: cfg.subject || null, intro_text: cfg.intro_text || null, outro_text: cfg.outro_text || null, whatsapp_text: cfg.whatsapp_text || null },
       { onConflict: "map_id,type" },
     );
     setSavedTypes((prev) => new Set([...prev, type]));
@@ -810,6 +810,8 @@ function EmailView({
             )
           ) : null;
 
+          const casaOutro = cfg.outro_text || "Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊";
+          const casaWaText = cfg.whatsapp_text || "";
           const casaBodyContent = type === "casa_summary" ? (
             !casaNode ? (
               <p className="text-sm italic text-red-400">Nodo "CASA" non trovato in questa mappa.</p>
@@ -824,7 +826,15 @@ function EmailView({
                     <TaskRow key={t.id} task={t} extra={t.completed_at ? formatDate(t.completed_at) : undefined} />
                   ))}
                 </div>
-                <p>Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊</p>
+                <p>{casaOutro}</p>
+                {casaWaText && (
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-green-500 px-3 py-1.5 text-xs font-medium text-white">
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.862L0 24l6.321-1.506A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.8 9.8 0 01-5.002-1.367l-.358-.214-3.724.888.924-3.638-.234-.374A9.791 9.791 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+                      {casaWaText}
+                    </span>
+                  </div>
+                )}
               </div>
             )
           ) : null;
@@ -882,6 +892,36 @@ function EmailView({
                       className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-300 focus:outline-none"
                     />
                   </div>
+
+                  {/* Frase finale + pulsante WhatsApp (solo casa_summary) */}
+                  {type === "casa_summary" && (
+                    <>
+                      <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3">
+                        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Frase finale</div>
+                        <textarea
+                          value={cfg.outro_text}
+                          onChange={(e) => updateCfg(type, { outro_text: e.target.value })}
+                          placeholder="Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊"
+                          rows={2}
+                          className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-300 focus:outline-none"
+                        />
+                      </div>
+                      <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3">
+                        <div className="mb-1 flex items-center gap-2">
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 text-green-500"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.862L0 24l6.321-1.506A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.8 9.8 0 01-5.002-1.367l-.358-.214-3.724.888.924-3.638-.234-.374A9.791 9.791 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+                          <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Testo pulsante WhatsApp</span>
+                          <span className="text-xs text-gray-400">(lascia vuoto per non mostrarlo)</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={cfg.whatsapp_text}
+                          onChange={(e) => updateCfg(type, { whatsapp_text: e.target.value })}
+                          placeholder="Scrivi a Tiziano su WhatsApp 💬"
+                          className="w-full border-0 bg-transparent text-sm text-gray-700 placeholder-gray-300 focus:outline-none"
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {/* Anteprima email */}
                   <div className="mb-4 rounded-xl border border-gray-100 bg-white px-4 py-3">
@@ -987,10 +1027,10 @@ export default function MapPage() {
     const pfx = `${mapId}.`;
 
     // Carica configurazioni email
-    supabase.from("email_configs").select("type,enabled,subject,intro_text").eq("map_id", mapId).then(({ data }) => {
+    supabase.from("email_configs").select("type,enabled,subject,intro_text,outro_text,whatsapp_text").eq("map_id", mapId).then(({ data }) => {
       const cfgMap: Record<string, EmailConfig> = {};
       (data ?? []).forEach((c: any) => {
-        cfgMap[c.type] = { enabled: c.enabled, subject: c.subject ?? "", intro_text: c.intro_text ?? "" };
+        cfgMap[c.type] = { enabled: c.enabled, subject: c.subject ?? "", intro_text: c.intro_text ?? "", outro_text: c.outro_text ?? "", whatsapp_text: c.whatsapp_text ?? "" };
       });
       setEmailConfigs(cfgMap);
     });
