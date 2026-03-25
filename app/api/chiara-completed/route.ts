@@ -73,8 +73,9 @@ export async function GET(request: Request) {
     .map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)}</li>`)
     .join("");
 
-  const introText = cfg.intro_text ||
-    `Negli ultimi giorni hai fatto un lavoro fantastico — hai completato <strong>${completedByChiara.length} task</strong> e ogni cosa che hai fatto fa la differenza. Grazie per l'energia e la dedizione che metti in tutto quello che fai! 💪`;
+  const introText = (cfg.intro_text ||
+    `Negli ultimi giorni hai fatto un lavoro fantastico — hai completato {count} task e ogni cosa che hai fatto fa la differenza. Grazie per l'energia e la dedizione che metti in tutto quello che fai! 💪`)
+    .replace("{count}", `<strong>${completedByChiara.length}</strong>`);
   const subject = cfg.subject || `✅ Chiara ha completato ${completedByChiara.length} task negli ultimi giorni`;
 
   const html = `
