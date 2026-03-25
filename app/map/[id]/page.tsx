@@ -617,7 +617,7 @@ function isDescendantOf(tasks: Task[], ancestorId: string, targetId: string): bo
   return false;
 }
 
-// ================= EMAIL PREVIEW =================
+// ================= EMAIL VIEW (preview + editing) =================
 
 function buildPathText(taskId: string, allTasks: Task[]): string {
   const byId = new Map(allTasks.map((t) => [t.id, t]));
@@ -643,7 +643,17 @@ function getDescendants(allTasks: Task[], parentId: string): Task[] {
   return result;
 }
 
-function EmailPreview({ tasks }: { tasks: Task[] }) {
+function EmailView({
+  tasks,
+  emailConfigs,
+  setEmailConfigs,
+  mapId,
+}: {
+  tasks: Task[];
+  emailConfigs: Record<string, EmailConfig>;
+  setEmailConfigs: React.Dispatch<React.SetStateAction<Record<string, EmailConfig>>>;
+  mapId: number;
+}) {
   const now = DateTime.now().setZone("Europe/Rome").setLocale("it");
   const startOfToday = now.startOf("day").toISO()!;
   const endOfToday = now.endOf("day").toISO()!;
@@ -651,228 +661,220 @@ function EmailPreview({ tasks }: { tasks: Task[] }) {
   const startOfWeek = now.startOf("week").toISO()!;
   const sevenDaysAgo = now.minus({ days: 7 }).toISO()!;
 
+  const [savedTypes, setSavedTypes] = useState<Set<string>>(new Set());
+
   const isChiara = (t: Task) => t.assignee === "chiara";
   const isTiziano = (t: Task) => !isChiara(t);
 
   const formatDate = (iso: string) =>
     DateTime.fromISO(iso).setZone("Europe/Rome").setLocale("it").toFormat("EEE d MMM");
 
-  // 1. Weekly Summary (lun 06:00)
+  // Task data per tipo
   const dueThisWeek = tasks.filter(
     (t) => !t.completed && t.due_at && t.due_at >= startOfToday && t.due_at <= endOfWeek,
   );
   const overdue = tasks.filter((t) => !t.completed && t.due_at && t.due_at < startOfToday);
   const weeklyWouldSend = dueThisWeek.length > 0 || overdue.length > 0;
 
-  // 2. Casa Summary (dom 21:30)
   const casaNode = tasks.find((t) => !t.parent_id && t.title === "CASA");
   const casaDesc = casaNode ? getDescendants(tasks, casaNode.id) : [];
   const casaCompleted = casaDesc.filter(
-    (t) => t.completed && t.completed_at && t.completed_at >= startOfWeek,
+    (t) => t.completed && t.assignee !== "chiara" && t.completed_at && t.completed_at >= startOfWeek,
   );
   const casaWouldSend = casaCompleted.length > 0;
 
-  // 3. Due Alerts (ogni giorno 06:30)
   const dueToday = tasks.filter(
     (t) => !t.completed && t.due_at && t.due_at >= startOfToday && t.due_at <= endOfToday,
   );
   const dueTodayWouldSend = dueToday.length > 0;
 
-  // 4. Chiara Completed (mer 07:00)
   const chiaraCompleted = tasks.filter(
     (t) => t.assignee === "chiara" && t.completed_at && t.completed_at >= sevenDaysAgo,
   );
   const chiaraWouldSend = chiaraCompleted.length > 0;
 
-  const weekLabel = `${now.startOf("week").toFormat("d MMM")} – ${now.endOf("week").toFormat("d MMM")}`;
+  const updateCfg = (type: string, partial: Partial<EmailConfig>) => {
+    setEmailConfigs((prev) => ({
+      ...prev,
+      [type]: { ...(prev[type] ?? { enabled: false, subject: "", intro_text: "" }), ...partial },
+    }));
+  };
 
-  const Badge = ({ ok }: { ok: boolean }) => (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${ok ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}
-    >
-      {ok ? "✓ partirebbe" : "✗ non partirebbe"}
-    </span>
-  );
+  const saveCfg = async (type: string) => {
+    const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "" };
+    await supabase.from("email_configs").upsert(
+      { map_id: mapId, type, enabled: cfg.enabled, subject: cfg.subject || null, intro_text: cfg.intro_text || null },
+      { onConflict: "map_id,type" },
+    );
+    setSavedTypes((prev) => new Set([...prev, type]));
+    setTimeout(
+      () => setSavedTypes((prev) => { const next = new Set(prev); next.delete(type); return next; }),
+      2000,
+    );
+  };
 
   const TaskRow = ({ task, extra }: { task: Task; extra?: string }) => (
-    <div className="flex items-center gap-2 border-b border-gray-50 py-1.5 text-sm last:border-0">
+    <div className="flex items-center gap-2 border-b border-gray-100 py-1.5 text-sm last:border-0">
       <span className="flex-1 text-gray-700">{buildPathText(task.id, tasks)}</span>
       {task.assignee === "chiara" && (
-        <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs text-purple-600">
-          Chiara
-        </span>
+        <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs text-purple-600">Chiara</span>
       )}
-      {extra && <span className="text-xs text-gray-400">{extra}</span>}
+      {extra && <span className="shrink-0 text-xs text-gray-400">{extra}</span>}
     </div>
   );
 
-  const Section = ({
-    title,
-    schedule,
-    wouldSend,
-    children,
-  }: {
-    title: string;
-    schedule: string;
-    wouldSend: boolean;
-    children: React.ReactNode;
-  }) => (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold text-gray-900">{title}</div>
-          <div className="text-xs text-gray-400">{schedule}</div>
-        </div>
-        <Badge ok={wouldSend} />
+  const weekLabel = `${now.startOf("week").toFormat("d MMM")} – ${now.endOf("week").toFormat("d MMM")}`;
+
+  // Contenuto corpo email per tipo
+  const bodyContent: Record<string, React.ReactNode> = {
+    weekly_summary: !weeklyWouldSend ? (
+      <p className="text-sm italic text-gray-400">Nessun task in scadenza questa settimana né scaduto.</p>
+    ) : (
+      <>
+        {dueThisWeek.filter(isTiziano).length > 0 && (
+          <div className="mb-3">
+            <div className="mb-1 text-xs font-semibold text-gray-500">📌 Tiziano — in scadenza ({dueThisWeek.filter(isTiziano).length})</div>
+            {dueThisWeek.filter(isTiziano).map((t) => <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />)}
+          </div>
+        )}
+        {overdue.filter(isTiziano).length > 0 && (
+          <div className="mb-3">
+            <div className="mb-1 text-xs font-semibold text-red-400">⚠️ Tiziano — scaduti ({overdue.filter(isTiziano).length})</div>
+            {overdue.filter(isTiziano).map((t) => <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />)}
+          </div>
+        )}
+        {dueThisWeek.filter(isChiara).length > 0 && (
+          <div className="mb-3">
+            <div className="mb-1 text-xs font-semibold text-purple-500">📌 Chiara — in scadenza ({dueThisWeek.filter(isChiara).length})</div>
+            {dueThisWeek.filter(isChiara).map((t) => <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />)}
+          </div>
+        )}
+        {overdue.filter(isChiara).length > 0 && (
+          <div className="mb-3">
+            <div className="mb-1 text-xs font-semibold text-red-400">⚠️ Chiara — scaduti ({overdue.filter(isChiara).length})</div>
+            {overdue.filter(isChiara).map((t) => <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />)}
+          </div>
+        )}
+      </>
+    ),
+    due_alerts: !dueTodayWouldSend ? (
+      <p className="text-sm italic text-gray-400">Nessun task in scadenza oggi.</p>
+    ) : (
+      <div>
+        <div className="mb-1 text-xs font-semibold text-gray-500">In scadenza oggi ({dueToday.length})</div>
+        {dueToday.map((t) => (
+          <TaskRow key={t.id} task={t} extra={t.due_at ? DateTime.fromISO(t.due_at).setZone("Europe/Rome").toFormat("HH:mm") : undefined} />
+        ))}
       </div>
-      {children}
-    </div>
-  );
+    ),
+    casa_summary: !casaNode ? (
+      <p className="text-sm italic text-red-400">Nodo "CASA" non trovato in questa mappa.</p>
+    ) : !casaWouldSend ? (
+      <p className="text-sm italic text-gray-400">Nessun task di Tiziano sotto CASA completato questa settimana.</p>
+    ) : (
+      <div>
+        <div className="mb-1 text-xs font-semibold text-gray-500">✅ Completati questa settimana ({casaCompleted.length})</div>
+        {casaCompleted.map((t) => <TaskRow key={t.id} task={t} extra={t.completed_at ? formatDate(t.completed_at) : undefined} />)}
+      </div>
+    ),
+    chiara_completed: !chiaraWouldSend ? (
+      <p className="text-sm italic text-gray-400">Nessun task completato da Chiara negli ultimi 7 giorni.</p>
+    ) : (
+      <div>
+        <div className="mb-1 text-xs font-semibold text-gray-500">Completati negli ultimi 7 giorni ({chiaraCompleted.length})</div>
+        {chiaraCompleted.map((t) => <TaskRow key={t.id} task={t} extra={t.completed_at ? formatDate(t.completed_at) : undefined} />)}
+      </div>
+    ),
+  };
+
+  const wouldSendMap: Record<string, boolean> = {
+    weekly_summary: weeklyWouldSend,
+    due_alerts: dueTodayWouldSend,
+    casa_summary: casaWouldSend,
+    chiara_completed: chiaraWouldSend,
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-gray-50 p-6 pt-16">
-      <div className="mx-auto max-w-2xl space-y-4">
-        <div className="mb-2 text-xs text-gray-400">
+      <div className="mx-auto max-w-2xl space-y-5">
+        <div className="text-xs text-gray-400">
           Oggi: {now.toFormat("cccc d MMMM yyyy")} — settimana {weekLabel}
         </div>
 
-        {/* 1. Weekly Summary */}
-        <Section
-          title="📅 Weekly Summary"
-          schedule="Ogni lunedì alle 06:00"
-          wouldSend={weeklyWouldSend}
-        >
-          {!weeklyWouldSend ? (
-            <p className="text-sm italic text-gray-400">
-              Nessun task in scadenza questa settimana né scaduto
-            </p>
-          ) : (
-            <>
-              {dueThisWeek.filter(isTiziano).length > 0 && (
-                <div className="mb-3">
-                  <div className="mb-1 text-xs font-medium text-gray-500">
-                    📌 Tiziano — in scadenza ({dueThisWeek.filter(isTiziano).length})
-                  </div>
-                  {dueThisWeek.filter(isTiziano).map((t) => (
-                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
-                  ))}
-                </div>
-              )}
-              {overdue.filter(isTiziano).length > 0 && (
-                <div className="mb-3">
-                  <div className="mb-1 text-xs font-medium text-red-400">
-                    ⚠️ Tiziano — scaduti ({overdue.filter(isTiziano).length})
-                  </div>
-                  {overdue.filter(isTiziano).map((t) => (
-                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
-                  ))}
-                </div>
-              )}
-              {dueThisWeek.filter(isChiara).length > 0 && (
-                <div className="mb-3">
-                  <div className="mb-1 text-xs font-medium text-purple-500">
-                    📌 Chiara — in scadenza ({dueThisWeek.filter(isChiara).length})
-                  </div>
-                  {dueThisWeek.filter(isChiara).map((t) => (
-                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
-                  ))}
-                </div>
-              )}
-              {overdue.filter(isChiara).length > 0 && (
-                <div className="mb-3">
-                  <div className="mb-1 text-xs font-medium text-red-400">
-                    ⚠️ Chiara — scaduti ({overdue.filter(isChiara).length})
-                  </div>
-                  {overdue.filter(isChiara).map((t) => (
-                    <TaskRow key={t.id} task={t} extra={formatDate(t.due_at!)} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </Section>
+        {EMAIL_TYPE_META.map(({ type, label, schedule, defaultSubject, defaultIntro }) => {
+          const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "" };
+          const wouldSend = wouldSendMap[type] ?? false;
+          const saved = savedTypes.has(type);
 
-        {/* 2. Casa Summary */}
-        <Section
-          title="🏠 Casa Summary"
-          schedule="Ogni domenica alle 21:30"
-          wouldSend={casaWouldSend}
-        >
-          {!casaNode ? (
-            <p className="text-sm italic text-red-400">Nodo "CASA" non trovato</p>
-          ) : !casaWouldSend ? (
-            <p className="text-sm italic text-gray-400">
-              Nessun task sotto CASA completato questa settimana
-            </p>
-          ) : (
-            <div>
-              <div className="mb-1 text-xs font-medium text-gray-500">
-                ✅ Completati questa settimana ({casaCompleted.length})
+          return (
+            <div key={type} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              {/* ── Header ── */}
+              <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-3">
+                <button
+                  onClick={() => { updateCfg(type, { enabled: !cfg.enabled }); }}
+                  title={cfg.enabled ? "Disabilita" : "Abilita"}
+                  className={`text-xl leading-none transition-colors ${cfg.enabled ? "text-green-500 hover:text-green-600" : "text-gray-300 hover:text-gray-400"}`}
+                >
+                  {cfg.enabled ? "●" : "○"}
+                </button>
+                <div className="flex-1">
+                  <span className="font-semibold text-gray-900">{label}</span>
+                  <span className="ml-2 text-xs text-gray-400">{schedule}</span>
+                </div>
+                {cfg.enabled && (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${wouldSend ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"}`}>
+                    {wouldSend ? "✓ partirebbe" : "✗ non partirebbe"}
+                  </span>
+                )}
               </div>
-              {casaCompleted.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  extra={t.completed_at ? formatDate(t.completed_at) : undefined}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
 
-        {/* 3. Due Alerts */}
-        <Section
-          title="⏰ Due Alerts"
-          schedule="Ogni giorno alle 06:30"
-          wouldSend={dueTodayWouldSend}
-        >
-          {!dueTodayWouldSend ? (
-            <p className="text-sm italic text-gray-400">Nessun task in scadenza oggi</p>
-          ) : (
-            <div>
-              <div className="mb-1 text-xs font-medium text-gray-500">
-                In scadenza oggi ({dueToday.length})
-              </div>
-              {dueToday.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  extra={
-                    t.due_at
-                      ? DateTime.fromISO(t.due_at).setZone("Europe/Rome").toFormat("HH:mm")
-                      : undefined
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+              {/* ── Corpo email (solo se abilitata) ── */}
+              {cfg.enabled && (
+                <div className="p-5">
+                  {/* Oggetto */}
+                  <div className="mb-4 flex items-baseline gap-2">
+                    <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-gray-400">Oggetto</span>
+                    <input
+                      type="text"
+                      value={cfg.subject}
+                      onChange={(e) => updateCfg(type, { subject: e.target.value })}
+                      placeholder={defaultSubject}
+                      className="flex-1 border-0 border-b border-dashed border-gray-300 bg-transparent pb-0.5 text-sm font-medium text-gray-800 placeholder-gray-300 focus:border-gray-500 focus:outline-none"
+                    />
+                  </div>
 
-        {/* 4. Chiara Completed */}
-        <Section
-          title="✅ Chiara Completed"
-          schedule="Ogni mercoledì alle 07:00"
-          wouldSend={chiaraWouldSend}
-        >
-          {!chiaraWouldSend ? (
-            <p className="text-sm italic text-gray-400">
-              Nessun task completato da Chiara negli ultimi 7 giorni
-            </p>
-          ) : (
-            <div>
-              <div className="mb-1 text-xs font-medium text-gray-500">
-                Completati negli ultimi 7 giorni ({chiaraCompleted.length})
-              </div>
-              {chiaraCompleted.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  extra={t.completed_at ? formatDate(t.completed_at) : undefined}
-                />
-              ))}
+                  {/* Testo introduttivo */}
+                  <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3">
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Testo introduttivo</div>
+                    <textarea
+                      value={cfg.intro_text}
+                      onChange={(e) => updateCfg(type, { intro_text: e.target.value })}
+                      placeholder={defaultIntro}
+                      rows={2}
+                      className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-300 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Anteprima lista task */}
+                  <div className="mb-4 rounded-xl border border-gray-100 bg-white px-4 py-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Contenuto generato</div>
+                    {bodyContent[type]}
+                  </div>
+
+                  {/* Salva */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => saveCfg(type)}
+                      className={`rounded-lg px-4 py-1.5 text-xs font-medium transition-colors ${saved ? "bg-green-500 text-white" : "bg-gray-900 text-white hover:bg-gray-700"}`}
+                    >
+                      {saved ? "✓ Salvato" : "Salva"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </Section>
+          );
+        })}
       </div>
     </div>
   );
@@ -899,9 +901,7 @@ export default function MapPage() {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [emailsOpen, setEmailsOpen] = useState(false);
   const [emailConfigs, setEmailConfigs] = useState<Record<string, EmailConfig>>({});
-  const [emailSaving, setEmailSaving] = useState(false);
   const [mapFont, setMapFont] = useState("var(--font-patrick-hand)");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
@@ -1563,7 +1563,12 @@ export default function MapPage() {
 
       {viewMode === "list" && (
         <div className="absolute inset-0 z-10">
-          <EmailPreview tasks={tasks} />
+          <EmailView
+            tasks={tasks}
+            emailConfigs={emailConfigs}
+            setEmailConfigs={setEmailConfigs}
+            mapId={mapId}
+          />
         </div>
       )}
       <div style={{ width: "100%", height: "100%", backgroundColor: bgColor }}>
@@ -1599,15 +1604,15 @@ export default function MapPage() {
                 </button>
                 <div className="h-4 w-px bg-gray-200" />
                 <button
-                  onClick={() => { setEmailsOpen((v) => !v); setSettingsOpen(false); }}
-                  className={emailsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
-                  title="Configura email"
+                  onClick={() => { setViewMode("list"); setSettingsOpen(false); }}
+                  className={viewMode === "list" ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
+                  title="Email"
                 >
                   📧
                 </button>
                 <div className="h-4 w-px bg-gray-200" />
                 <button
-                  onClick={() => { setSettingsOpen((v) => !v); setEmailsOpen(false); }}
+                  onClick={() => { setSettingsOpen((v) => !v); }}
                   className={settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
                   title="Personalizza"
                 >
@@ -1750,82 +1755,6 @@ export default function MapPage() {
                 </div>
               )}
 
-              {/* Pannello email */}
-              {emailsOpen && (
-                <div
-                  className="w-96 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[80vh] overflow-y-auto"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Configurazione email</div>
-                  {EMAIL_TYPE_META.map(({ type, label, schedule, defaultSubject, defaultIntro }) => {
-                    const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "" };
-                    return (
-                      <div key={type} className="mb-3 rounded-xl border border-gray-100 p-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-medium text-gray-800">{label}</div>
-                            <div className="text-xs text-gray-400">{schedule}</div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const next = { ...cfg, enabled: !cfg.enabled };
-                              setEmailConfigs((prev) => ({ ...prev, [type]: next }));
-                              supabase.from("email_configs").upsert(
-                                { map_id: mapId, type, enabled: next.enabled, subject: next.subject || null, intro_text: next.intro_text || null },
-                                { onConflict: "map_id,type" }
-                              );
-                            }}
-                            className={`text-xl leading-none ${cfg.enabled ? "text-green-500" : "text-gray-300"}`}
-                          >
-                            {cfg.enabled ? "●" : "○"}
-                          </button>
-                        </div>
-                        {cfg.enabled && (
-                          <div className="mt-3 flex flex-col gap-2">
-                            <div>
-                              <div className="mb-1 text-xs text-gray-500">Oggetto email</div>
-                              <input
-                                type="text"
-                                value={cfg.subject}
-                                onChange={(e) => setEmailConfigs((prev) => ({ ...prev, [type]: { ...cfg, subject: e.target.value } }))}
-                                placeholder={defaultSubject}
-                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <div className="mb-1 text-xs text-gray-500">Testo introduttivo</div>
-                              <textarea
-                                value={cfg.intro_text}
-                                onChange={(e) => setEmailConfigs((prev) => ({ ...prev, [type]: { ...cfg, intro_text: e.target.value } }))}
-                                placeholder={defaultIntro}
-                                rows={2}
-                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-xs resize-none"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <button
-                    onClick={async () => {
-                      setEmailSaving(true);
-                      await Promise.all(
-                        Object.entries(emailConfigs).map(([type, cfg]) =>
-                          supabase.from("email_configs").upsert(
-                            { map_id: mapId, type, enabled: cfg.enabled, subject: cfg.subject || null, intro_text: cfg.intro_text || null },
-                            { onConflict: "map_id,type" }
-                          )
-                        )
-                      );
-                      setEmailSaving(false);
-                    }}
-                    className="mt-1 w-full rounded-lg bg-gray-900 py-1.5 text-xs text-white hover:bg-gray-700"
-                  >
-                    {emailSaving ? "Salvato ✓" : "Salva"}
-                  </button>
-                </div>
-              )}
             </div>
           </Panel>
           {error && (
