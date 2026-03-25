@@ -92,7 +92,9 @@ export async function GET(request: Request) {
     .map((t) => `<li style="margin-bottom:8px;">${buildPath(t.id, allTasks)}</li>`)
     .join("");
 
-  const introText = cfg.intro_text || "ecco cosa ha fatto questa settimana Tiziano per la casa.";
+  const introText = (cfg.intro_text ||
+    `Questa settimana Tiziano si è dato da fare per la casa — ha completato {count} task. Ogni piccola cosa conta! 🏠`)
+    .replace("{count}", `<strong>${completedThisWeek.length}</strong>`);
   const subject = cfg.subject || `🏠 Tiziano ha completato ${completedThisWeek.length} task per la casa questa settimana`;
 
   const html = `

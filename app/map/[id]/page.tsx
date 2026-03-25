@@ -40,7 +40,7 @@ type EmailConfig = { enabled: boolean; subject: string; intro_text: string };
 const EMAIL_TYPE_META = [
   { type: "weekly_summary",   label: "Riepilogo settimanale", schedule: "Lunedì ore 06:00",     defaultSubject: "📅 Riepilogo settimanale",    defaultIntro: "Ecco i task in scadenza questa settimana." },
   { type: "due_alerts",       label: "Scadenze del giorno",   schedule: "Ogni giorno ore 06:30", defaultSubject: "⏰ Scadenze di oggi",           defaultIntro: "Hai questi task in scadenza oggi." },
-  { type: "casa_summary",     label: "Riepilogo casa",        schedule: "Domenica ore 21:30",    defaultSubject: "🏠 Task casa completati",       defaultIntro: "Ecco cosa ha fatto Tiziano per la casa questa settimana." },
+  { type: "casa_summary",     label: "Riepilogo casa",        schedule: "Domenica ore 21:30",    defaultSubject: "🏠 Task casa completati",       defaultIntro: "Questa settimana Tiziano si è dato da fare per la casa — ha completato {count} task. Ogni piccola cosa conta! 🏠" },
   { type: "chiara_completed", label: "Completati da Chiara",  schedule: "Mercoledì ore 07:00",   defaultSubject: "✅ Task completati da Chiara",  defaultIntro: "Negli ultimi giorni hai fatto un lavoro fantastico — hai completato {count} task e ogni cosa che hai fatto fa la differenza. Grazie per l'energia e la dedizione che metti in tutto quello che fai! 💪" },
 ] as const;
 
@@ -767,16 +767,6 @@ function EmailView({
         ))}
       </div>
     ),
-    casa_summary: !casaNode ? (
-      <p className="text-sm italic text-red-400">Nodo "CASA" non trovato in questa mappa.</p>
-    ) : !casaWouldSend ? (
-      <p className="text-sm italic text-gray-400">Nessun task di Tiziano sotto CASA completato questa settimana.</p>
-    ) : (
-      <div>
-        <div className="mb-1 text-xs font-semibold text-gray-500">✅ Completati questa settimana ({casaCompleted.length})</div>
-        {casaCompleted.map((t) => <TaskRow key={t.id} task={t} extra={t.completed_at ? formatDate(t.completed_at) : undefined} />)}
-      </div>
-    ),
   };
 
   const wouldSendMap: Record<string, boolean> = {
@@ -798,15 +788,17 @@ function EmailView({
           const wouldSend = wouldSendMap[type] ?? false;
           const saved = savedTypes.has(type);
 
-          // Per chiara_completed l'anteprima mostra l'email intera (saluto + intro + lista + chiusura)
-          const resolvedIntro = (cfg.intro_text || defaultIntro).replace("{count}", String(chiaraCompleted.length));
+          // Anteprima email completa per i tipi con struttura ricca
+          const resolvedChiaraIntro = (cfg.intro_text || defaultIntro).replace("{count}", String(chiaraCompleted.length));
+          const resolvedCasaIntro = (cfg.intro_text || defaultIntro).replace("{count}", String(casaCompleted.length));
+
           const chiaraBodyContent = type === "chiara_completed" ? (
             !chiaraWouldSend ? (
               <p className="text-sm italic text-gray-400">Nessun task completato da Chiara negli ultimi 7 giorni.</p>
             ) : (
               <div className="space-y-3 text-sm text-gray-700">
                 <p>Ciao Chiara! 🌟</p>
-                <p>{resolvedIntro}</p>
+                <p>{resolvedChiaraIntro}</p>
                 <div>
                   <p className="mb-1 font-semibold">Ecco cosa hai portato a termine:</p>
                   {chiaraCompleted.map((t) => (
@@ -814,6 +806,25 @@ function EmailView({
                   ))}
                 </div>
                 <p>Continua così — sei una forza! 🎉</p>
+              </div>
+            )
+          ) : null;
+
+          const casaBodyContent = type === "casa_summary" ? (
+            !casaNode ? (
+              <p className="text-sm italic text-red-400">Nodo "CASA" non trovato in questa mappa.</p>
+            ) : !casaWouldSend ? (
+              <p className="text-sm italic text-gray-400">Nessun task di Tiziano sotto CASA completato questa settimana.</p>
+            ) : (
+              <div className="space-y-3 text-sm text-gray-700">
+                <p>Ciao Chiara,</p>
+                <p>{resolvedCasaIntro}</p>
+                <div>
+                  {casaCompleted.map((t) => (
+                    <TaskRow key={t.id} task={t} extra={t.completed_at ? formatDate(t.completed_at) : undefined} />
+                  ))}
+                </div>
+                <p>Dimostra la tua gratitudine a Tiziano regalandogli un buono Amazon 😊</p>
               </div>
             )
           ) : null;
@@ -859,7 +870,7 @@ function EmailView({
                   <div className="mb-4 rounded-xl bg-gray-50 px-4 py-3">
                     <div className="mb-1 flex items-center gap-2">
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Testo introduttivo</span>
-                      {type === "chiara_completed" && (
+                      {(type === "chiara_completed" || type === "casa_summary") && (
                         <span className="rounded bg-gray-200 px-1.5 py-0.5 font-mono text-xs text-gray-500" title="Verrà sostituito con il numero di task completati">{"{count}"}</span>
                       )}
                     </div>
@@ -867,7 +878,7 @@ function EmailView({
                       value={cfg.intro_text}
                       onChange={(e) => updateCfg(type, { intro_text: e.target.value })}
                       placeholder={defaultIntro}
-                      rows={type === "chiara_completed" ? 3 : 2}
+                      rows={type === "chiara_completed" || type === "casa_summary" ? 3 : 2}
                       className="w-full resize-none bg-transparent text-sm text-gray-700 placeholder-gray-300 focus:outline-none"
                     />
                   </div>
@@ -875,7 +886,7 @@ function EmailView({
                   {/* Anteprima email */}
                   <div className="mb-4 rounded-xl border border-gray-100 bg-white px-4 py-3">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Anteprima email</div>
-                    {chiaraBodyContent ?? bodyContentStatic[type]}
+                    {chiaraBodyContent ?? casaBodyContent ?? bodyContentStatic[type]}
                   </div>
 
                   {/* Salva */}
