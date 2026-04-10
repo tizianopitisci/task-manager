@@ -27,6 +27,7 @@ type Task = {
 
 const ROOT_ID = "ROOT_NODE";
 const LS_EXPANDED = "taskManager.expandedMap";
+const LS_LAST_OPEN_DATE = "taskManager.lastOpenDate";
 const LS_ROOT_LABEL = "taskManager.rootLabel";
 const LS_SHOW_COMPLETED = "taskManager.showCompleted";
 const LS_FONT = "taskManager.mapFont";
@@ -1100,6 +1101,26 @@ export default function MapPage() {
     });
   };
 
+  const collapseToToday = () => {
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    const dueTasks = tasks.filter(
+      (t) => !t.completed && t.due_at && new Date(t.due_at) <= todayEnd
+    );
+    const toExpand = new Set<string>([ROOT_ID]);
+    for (const task of dueTasks) {
+      let curId = task.parent_id;
+      while (curId) {
+        toExpand.add(curId);
+        curId = byId.get(curId)?.parent_id ?? null;
+      }
+    }
+    const next: ExpandedMap = { [ROOT_ID]: true };
+    tasks.forEach((t) => { next[t.id] = toExpand.has(t.id); });
+    setExpanded(next);
+  };
+
   const toggleExpand = (id: string) => {
     setExpanded((prev) => {
       const cur = prev[id] ?? true;
@@ -1123,18 +1144,25 @@ export default function MapPage() {
 
     // ── Inizializza expanded ──────────────────────────────────────────
     const pfx = `${mapId}.`;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const lastOpenDate = window.localStorage.getItem(pfx + LS_LAST_OPEN_DATE);
+    const isNewDay = lastOpenDate !== todayStr;
+
     const savedRaw = window.localStorage.getItem(pfx + LS_EXPANDED);
     const saved = safeParseExpanded(savedRaw);
-    // Considera "stato reale" solo se contiene almeno un ID di task (non solo ROOT).
-    // Il persist effect scrive subito { ROOT_NODE: true } al primo render, quindi
-    // savedRaw non-null non basta a distinguere una visita reale da un primo avvio.
+    // "Stato reale" = contiene almeno un ID di task (non solo ROOT).
+    // Il persist effect scrive subito {ROOT_NODE:true} al mount, quindi
+    // savedRaw non-null non basta a distinguere stato reale da primo avvio.
     const hasRealState = Object.keys(saved).some((k) => k !== ROOT_ID);
-    if (hasRealState) {
+
+    if (hasRealState && !isNewDay) {
+      // Stesso giorno, stato salvato → ripristina
       if (saved[ROOT_ID] === undefined) saved[ROOT_ID] = true;
       setExpanded(saved);
     } else {
-      // Prima visita: collassa tutto, espandi solo gli antenati dei task
-      // con scadenza oggi o già scaduta (e non completati)
+      // Primo avvio del giorno (o prima visita in assoluto):
+      // collassa tutto, espandi solo gli antenati dei task scaduti/oggi
+      window.localStorage.setItem(pfx + LS_LAST_OPEN_DATE, todayStr);
       const todayEnd = new Date();
       todayEnd.setHours(23, 59, 59, 999);
       const byId = new Map(loadedTasks.map((t) => [t.id, t]));
@@ -1143,21 +1171,14 @@ export default function MapPage() {
       );
       const toExpand = new Set<string>([ROOT_ID]);
       for (const task of dueTasks) {
-        // espandi l'antenato diretto (il genitore del task scaduto)
-        // e tutta la catena fino alla radice
         let curId = task.parent_id;
         while (curId) {
           toExpand.add(curId);
-          const cur = byId.get(curId);
-          curId = cur?.parent_id ?? null;
+          curId = byId.get(curId)?.parent_id ?? null;
         }
-        // se il task è figlio diretto del root (parent_id null),
-        // ROOT è già in toExpand
       }
       const initialExpanded: ExpandedMap = { [ROOT_ID]: true };
-      loadedTasks.forEach((t) => {
-        initialExpanded[t.id] = toExpand.has(t.id);
-      });
+      loadedTasks.forEach((t) => { initialExpanded[t.id] = toExpand.has(t.id); });
       setExpanded(initialExpanded);
     }
   };
@@ -1701,6 +1722,14 @@ export default function MapPage() {
             <div className="flex flex-col items-end gap-2">
               {/* Barra controlli */}
               <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 shadow-sm text-sm backdrop-blur-sm">
+                <button
+                  onClick={collapseToToday}
+                  className="font-medium text-orange-500 hover:text-orange-600"
+                  title="Mostra solo i task scaduti o in scadenza oggi"
+                >
+                  Oggi
+                </button>
+                <div className="h-4 w-px bg-gray-200" />
                 <label className="flex cursor-pointer items-center gap-1.5 text-gray-600">
                   <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
                   Completati
