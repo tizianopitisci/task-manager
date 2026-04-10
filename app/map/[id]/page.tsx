@@ -1044,9 +1044,7 @@ export default function MapPage() {
       }
     });
 
-    const savedExpanded = safeParseExpanded(window.localStorage.getItem(pfx + LS_EXPANDED));
-    if (savedExpanded[ROOT_ID] === undefined) savedExpanded[ROOT_ID] = true;
-    setExpanded(savedExpanded);
+    // expanded viene inizializzato in load() dove abbiamo i task
 
     const sc = window.localStorage.getItem(pfx + LS_SHOW_COMPLETED);
     setShowCompleted(sc === "true");
@@ -1120,7 +1118,44 @@ export default function MapPage() {
       setError(error.message);
       return;
     }
-    setTasks((data as Task[]) ?? []);
+    const loadedTasks = (data as Task[]) ?? [];
+    setTasks(loadedTasks);
+
+    // ── Inizializza expanded ──────────────────────────────────────────
+    const pfx = `${mapId}.`;
+    const savedRaw = window.localStorage.getItem(pfx + LS_EXPANDED);
+    if (savedRaw) {
+      const saved = safeParseExpanded(savedRaw);
+      if (saved[ROOT_ID] === undefined) saved[ROOT_ID] = true;
+      setExpanded(saved);
+    } else {
+      // Prima visita: collassa tutto, espandi solo gli antenati dei task
+      // con scadenza oggi o già scaduta (e non completati)
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+      const byId = new Map(loadedTasks.map((t) => [t.id, t]));
+      const dueTasks = loadedTasks.filter(
+        (t) => !t.completed && t.due_at && new Date(t.due_at) <= todayEnd
+      );
+      const toExpand = new Set<string>([ROOT_ID]);
+      for (const task of dueTasks) {
+        // espandi l'antenato diretto (il genitore del task scaduto)
+        // e tutta la catena fino alla radice
+        let curId = task.parent_id;
+        while (curId) {
+          toExpand.add(curId);
+          const cur = byId.get(curId);
+          curId = cur?.parent_id ?? null;
+        }
+        // se il task è figlio diretto del root (parent_id null),
+        // ROOT è già in toExpand
+      }
+      const initialExpanded: ExpandedMap = { [ROOT_ID]: true };
+      loadedTasks.forEach((t) => {
+        initialExpanded[t.id] = toExpand.has(t.id);
+      });
+      setExpanded(initialExpanded);
+    }
   };
 
   useEffect(() => {
