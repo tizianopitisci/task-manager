@@ -34,6 +34,7 @@ const LS_FONT = "taskManager.mapFont";
 const LS_BG_COLOR = "taskManager.mapBgColor";
 const LS_ACCENT_COLOR = "taskManager.mapAccentColor";
 const LS_CHILD_COLOR = "taskManager.mapChildColor";
+const LS_ROOT_TEXT_COLOR = "taskManager.mapRootTextColor";
 
 // ================= EMAIL SETTINGS =================
 type EmailConfig = { enabled: boolean; subject: string; intro_text: string; outro_text: string; whatsapp_text: string };
@@ -99,6 +100,7 @@ type RootNodeData = {
   fanCount: number;
   onAddRoot: () => void;
   isDropTarget: boolean;
+  rootTextColor: string;
 };
 
 type TaskNodeData = {
@@ -322,7 +324,7 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
         />
       ) : (
         <div className="flex items-center gap-2">
-          <div className="text-5xl font-semibold italic tracking-wide text-black">{data.label}</div>
+          <div className="text-5xl font-semibold italic tracking-wide" style={{ color: data.rootTextColor }}>{data.label}</div>
           <button
             type="button"
             className="nodrag nopan rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"
@@ -979,6 +981,7 @@ export default function MapPage() {
   const [bgColor, setBgColor] = useState("#ffffff");
   const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
   const [nodeChildColor, setNodeChildColor] = useState("#ffffff");
+  const [rootTextColor, setRootTextColor] = useState("#000000");
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
@@ -1063,6 +1066,8 @@ export default function MapPage() {
     if (savedAccent) setNodeAccentColor(savedAccent);
     const savedChild = window.localStorage.getItem(pfx + LS_CHILD_COLOR);
     if (savedChild) setNodeChildColor(savedChild);
+    const savedRootTextColor = window.localStorage.getItem(pfx + LS_ROOT_TEXT_COLOR);
+    if (savedRootTextColor) setRootTextColor(savedRootTextColor);
   }, [mapId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -1096,6 +1101,11 @@ export default function MapPage() {
     if (!mapId) return;
     window.localStorage.setItem(`${mapId}.${LS_CHILD_COLOR}`, nodeChildColor);
   }, [nodeChildColor, mapId]);
+
+  useEffect(() => {
+    if (!mapId) return;
+    window.localStorage.setItem(`${mapId}.${LS_ROOT_TEXT_COLOR}`, rootTextColor);
+  }, [rootTextColor, mapId]);
 
   const collapseAll = () => {
     setExpanded((prev) => {
@@ -1545,6 +1555,7 @@ export default function MapPage() {
         fanCount,
         onAddRoot: stableAddRootTask,
         isDropTarget: ROOT_ID === dragTargetId,
+        rootTextColor,
       },
     };
 
@@ -1705,7 +1716,7 @@ export default function MapPage() {
           />
         </div>
       )}
-      <div style={{ width: "100%", height: "100%", backgroundColor: bgColor }}>
+      <div style={{ width: "100%", height: "100%", backgroundColor: bgColor, fontFamily: mapFont }}>
         <ReactFlow
           defaultNodes={[]}
           edges={edges}
@@ -1893,6 +1904,27 @@ export default function MapPage() {
                       onChange={(e) => setNodeChildColor(e.target.value)}
                       className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
                     />
+                  </div>
+
+                  {/* Colore testo nodo radice */}
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Testo nodo principale</div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={/^#[0-9a-fA-F]{6}$/.test(rootTextColor) ? rootTextColor : "#000000"}
+                        onChange={(e) => setRootTextColor(e.target.value)}
+                        className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
+                      />
+                      <input
+                        type="text"
+                        value={rootTextColor}
+                        maxLength={7}
+                        placeholder="#000000"
+                        onChange={(e) => setRootTextColor(e.target.value)}
+                        className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                      />
+                    </div>
                   </div>
 
                   {/* Opzioni mappa */}
