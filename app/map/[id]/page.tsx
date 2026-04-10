@@ -667,11 +667,13 @@ function EmailView({
   emailConfigs,
   setEmailConfigs,
   mapId,
+  allowedEmailTypes,
 }: {
   tasks: Task[];
   emailConfigs: Record<string, EmailConfig>;
   setEmailConfigs: React.Dispatch<React.SetStateAction<Record<string, EmailConfig>>>;
   mapId: number;
+  allowedEmailTypes: string[];
 }) {
   const now = DateTime.now().setZone("Europe/Rome").setLocale("it");
   const startOfToday = now.startOf("day").toISO()!;
@@ -802,7 +804,7 @@ function EmailView({
           Oggi: {now.toFormat("cccc d MMMM yyyy")} — settimana {weekLabel}
         </div>
 
-        {EMAIL_TYPE_META.map(({ type, label, schedule, defaultSubject, defaultIntro }) => {
+        {EMAIL_TYPE_META.filter(({ type }) => allowedEmailTypes.includes(type)).map(({ type, label, schedule, defaultSubject, defaultIntro }) => {
           const cfg = emailConfigs[type] ?? { enabled: false, subject: "", intro_text: "" };
           const wouldSend = wouldSendMap[type] ?? false;
           const saved = savedTypes.has(type);
@@ -990,6 +992,7 @@ export default function MapPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [emailConfigs, setEmailConfigs] = useState<Record<string, EmailConfig>>({});
+  const [allowedEmailTypes, setAllowedEmailTypes] = useState<string[]>(["weekly_summary","due_alerts","casa_summary","chiara_completed"]);
   const [mapFont, setMapFont] = useState("var(--font-patrick-hand)");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
@@ -1058,13 +1061,14 @@ export default function MapPage() {
     });
 
     // Nome mappa: usato come default per il nodo radice se non salvato
-    supabase.from("maps").select("name,show_assignee").eq("id", mapId).single().then(({ data }) => {
+    supabase.from("maps").select("name,show_assignee,email_types").eq("id", mapId).single().then(({ data }) => {
       if (data?.name) {
         setMapName(data.name);
         const savedLabel = window.localStorage.getItem(pfx + LS_ROOT_LABEL);
         setRootLabel(savedLabel?.trim() || data.name);
       }
       if (data?.show_assignee === false) setShowAssignee(false);
+      if (Array.isArray(data?.email_types) && data.email_types.length > 0) setAllowedEmailTypes(data.email_types);
     });
 
     // expanded viene inizializzato in load() dove abbiamo i task
@@ -1736,6 +1740,7 @@ export default function MapPage() {
             emailConfigs={emailConfigs}
             setEmailConfigs={setEmailConfigs}
             mapId={mapId}
+            allowedEmailTypes={allowedEmailTypes}
           />
         </div>
       )}
