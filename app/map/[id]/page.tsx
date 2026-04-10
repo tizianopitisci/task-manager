@@ -1124,8 +1124,12 @@ export default function MapPage() {
     // ── Inizializza expanded ──────────────────────────────────────────
     const pfx = `${mapId}.`;
     const savedRaw = window.localStorage.getItem(pfx + LS_EXPANDED);
-    if (savedRaw) {
-      const saved = safeParseExpanded(savedRaw);
+    const saved = safeParseExpanded(savedRaw);
+    // Considera "stato reale" solo se contiene almeno un ID di task (non solo ROOT).
+    // Il persist effect scrive subito { ROOT_NODE: true } al primo render, quindi
+    // savedRaw non-null non basta a distinguere una visita reale da un primo avvio.
+    const hasRealState = Object.keys(saved).some((k) => k !== ROOT_ID);
+    if (hasRealState) {
       if (saved[ROOT_ID] === undefined) saved[ROOT_ID] = true;
       setExpanded(saved);
     } else {
