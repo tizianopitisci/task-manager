@@ -668,12 +668,14 @@ function EmailView({
   setEmailConfigs,
   mapId,
   allowedEmailTypes,
+  setAllowedEmailTypes,
 }: {
   tasks: Task[];
   emailConfigs: Record<string, EmailConfig>;
   setEmailConfigs: React.Dispatch<React.SetStateAction<Record<string, EmailConfig>>>;
   mapId: number;
   allowedEmailTypes: string[];
+  setAllowedEmailTypes: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
   const now = DateTime.now().setZone("Europe/Rome").setLocale("it");
   const startOfToday = now.startOf("day").toISO()!;
@@ -797,11 +799,42 @@ function EmailView({
     chiara_completed: chiaraWouldSend,
   };
 
+  const toggleAllowedType = async (type: string) => {
+    const next = allowedEmailTypes.includes(type)
+      ? allowedEmailTypes.filter((t) => t !== type)
+      : [...allowedEmailTypes, type];
+    setAllowedEmailTypes(next);
+    await supabase.from("maps").update({ email_types: next }).eq("id", mapId);
+  };
+
   return (
     <div className="h-full overflow-y-auto bg-gray-50 p-6 pt-16">
       <div className="mx-auto max-w-2xl space-y-5">
         <div className="text-xs text-gray-400">
           Oggi: {now.toFormat("cccc d MMMM yyyy")} — settimana {weekLabel}
+        </div>
+
+        {/* Selezione tipi attivi */}
+        <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+          <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Email attive per questa mappa</div>
+          <div className="flex flex-wrap gap-2">
+            {EMAIL_TYPE_META.map(({ type, label }) => {
+              const active = allowedEmailTypes.includes(type);
+              return (
+                <button
+                  key={type}
+                  onClick={() => toggleAllowedType(type)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    active
+                      ? "border-gray-800 bg-gray-800 text-white"
+                      : "border-gray-300 bg-white text-gray-400 hover:border-gray-500 hover:text-gray-600"
+                  }`}
+                >
+                  {active ? "✓ " : ""}{label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {EMAIL_TYPE_META.filter(({ type }) => allowedEmailTypes.includes(type)).map(({ type, label, schedule, defaultSubject, defaultIntro }) => {
@@ -1741,6 +1774,7 @@ export default function MapPage() {
             setEmailConfigs={setEmailConfigs}
             mapId={mapId}
             allowedEmailTypes={allowedEmailTypes}
+            setAllowedEmailTypes={setAllowedEmailTypes}
           />
         </div>
       )}
