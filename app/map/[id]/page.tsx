@@ -35,6 +35,15 @@ const LS_BG_COLOR = "taskManager.mapBgColor";
 const LS_ACCENT_COLOR = "taskManager.mapAccentColor";
 const LS_CHILD_COLOR = "taskManager.mapChildColor";
 const LS_ROOT_TEXT_COLOR = "taskManager.mapRootTextColor";
+const LS_NODE_SHADOW = "taskManager.mapNodeShadow";
+
+const SHADOW_PRESETS = [
+  "none",
+  "0 1px 4px rgba(0,0,0,0.10)",
+  "0 4px 10px rgba(0,0,0,0.15)",
+  "0 8px 20px rgba(0,0,0,0.22)",
+  "0 16px 36px rgba(0,0,0,0.28)",
+] as const;
 
 // ================= EMAIL SETTINGS =================
 type EmailConfig = { enabled: boolean; subject: string; intro_text: string; outro_text: string; whatsapp_text: string };
@@ -101,6 +110,7 @@ type RootNodeData = {
   onAddRoot: () => void;
   isDropTarget: boolean;
   rootTextColor: string;
+  nodeShadow: string;
 };
 
 type TaskNodeData = {
@@ -138,6 +148,7 @@ type TaskNodeData = {
   showAssignee: boolean;
   nodeAccentColor: string;
   nodeChildColor: string;
+  nodeShadow: string;
   isDropTarget: boolean;
 
   // nessun callback DnD: il drag è gestito nativamente da ReactFlow
@@ -298,7 +309,7 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
   return (
     <div
       className={["relative select-none px-2 py-1 transition-all", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2 bg-blue-50/30" : ""].join(" ")}
-      style={{ borderRadius: "0 14px 14px 14px" }}
+      style={{ borderRadius: "0 14px 14px 14px", boxShadow: data.nodeShadow }}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -379,7 +390,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   return (
     <div
       className={wrapperClass}
-      style={{ backgroundColor: data.isTopLevel ? data.nodeAccentColor : data.nodeChildColor, borderRadius: nodeRadius }}
+      style={{ backgroundColor: data.isTopLevel ? data.nodeAccentColor : data.nodeChildColor, borderRadius: nodeRadius, boxShadow: data.nodeShadow }}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -984,6 +995,7 @@ export default function MapPage() {
   const [nodeAccentColor, setNodeAccentColor] = useState("#000000");
   const [nodeChildColor, setNodeChildColor] = useState("#ffffff");
   const [rootTextColor, setRootTextColor] = useState("#000000");
+  const [nodeShadowIndex, setNodeShadowIndex] = useState(2);
 
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
@@ -1070,6 +1082,8 @@ export default function MapPage() {
     if (savedChild) setNodeChildColor(savedChild);
     const savedRootTextColor = window.localStorage.getItem(pfx + LS_ROOT_TEXT_COLOR);
     if (savedRootTextColor) setRootTextColor(savedRootTextColor);
+    const savedShadow = window.localStorage.getItem(pfx + LS_NODE_SHADOW);
+    if (savedShadow !== null) setNodeShadowIndex(Number(savedShadow));
   }, [mapId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -1108,6 +1122,11 @@ export default function MapPage() {
     if (!mapId) return;
     window.localStorage.setItem(`${mapId}.${LS_ROOT_TEXT_COLOR}`, rootTextColor);
   }, [rootTextColor, mapId]);
+
+  useEffect(() => {
+    if (!mapId) return;
+    window.localStorage.setItem(`${mapId}.${LS_NODE_SHADOW}`, String(nodeShadowIndex));
+  }, [nodeShadowIndex, mapId]);
 
   const collapseAll = () => {
     setExpanded((prev) => {
@@ -1533,6 +1552,7 @@ export default function MapPage() {
             onSetAssignee: setAssignee,
             assignee: t.assignee,
             showAssignee,
+            nodeShadow: SHADOW_PRESETS[nodeShadowIndex],
             isDropTarget: t.id === dragTargetId,
             // nessun callback drag: gestito da onNodeDragStop su ReactFlow
           },
@@ -1558,6 +1578,7 @@ export default function MapPage() {
         onAddRoot: stableAddRootTask,
         isDropTarget: ROOT_ID === dragTargetId,
         rootTextColor,
+        nodeShadow: SHADOW_PRESETS[nodeShadowIndex],
       },
     };
 
@@ -1587,7 +1608,7 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootTextColor, rootLabel, rootEditing, expanded, manualPositions, dragTargetId]);
+  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootTextColor, nodeShadowIndex, rootLabel, rootEditing, expanded, manualPositions, dragTargetId]);
 
   // ---- drag-to-reorder via ReactFlow nativo ----
   // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
@@ -1926,6 +1947,26 @@ export default function MapPage() {
                         onChange={(e) => setRootTextColor(e.target.value)}
                         className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
                       />
+                    </div>
+                  </div>
+
+                  {/* Ombra nodi */}
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      <span>Ombra nodi</span>
+                      <span className="font-normal normal-case text-gray-400">{["Nessuna","Leggera","Media","Forte","Intensa"][nodeShadowIndex]}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={4}
+                      step={1}
+                      value={nodeShadowIndex}
+                      onChange={(e) => setNodeShadowIndex(Number(e.target.value))}
+                      className="w-full accent-gray-800"
+                    />
+                    <div className="mt-1 flex justify-between text-xs text-gray-300">
+                      <span>○</span><span>◔</span><span>◑</span><span>◕</span><span>●</span>
                     </div>
                   </div>
 
