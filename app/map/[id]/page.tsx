@@ -298,7 +298,7 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
   return (
     <div
       className={["relative select-none px-2 py-1 transition-all", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2 bg-blue-50/30" : ""].join(" ")}
-      style={{ borderRadius: "14px 14px 14px 0" }}
+      style={{ borderRadius: "0 14px 14px 14px" }}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -360,7 +360,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
     }
   }, [data.isEditing]);
 
-  const nodeRadius = "14px 14px 14px 0";
+  const nodeRadius = "0 14px 14px 14px";
   const wrapperClass = data.isTopLevel
     ? ["relative min-w-[240px] max-w-[460px] px-4 py-3 text-white shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2" : ""].join(" ")
     : ["relative min-w-[260px] max-w-[460px] border px-3 py-2 shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-1 border-blue-400" : data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
