@@ -1587,7 +1587,7 @@ export default function MapPage() {
       .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
     return { nodes, edges };
-  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootLabel, rootEditing, expanded, manualPositions, dragTargetId]);
+  }, [visibleTasks, tasks, editingId, selectedNodeId, nodeAccentColor, nodeChildColor, rootTextColor, rootLabel, rootEditing, expanded, manualPositions, dragTargetId]);
 
   // ---- drag-to-reorder via ReactFlow nativo ----
   // Quando l'utente trascina un nodo (dal grip ⠿), onNodeDragStop riceve
