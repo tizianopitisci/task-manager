@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import {
   Patrick_Hand,
   Caveat,
@@ -24,9 +24,26 @@ const gloriaHallelujah  = Gloria_Hallelujah(  { variable: "--font-gloria-hallelu
 const dancingScript     = Dancing_Script(     { variable: "--font-dancing-script",      subsets: ["latin"], weight: ["400","700"] });
 const amaticSC          = Amatic_SC(          { variable: "--font-amatic-sc",           subsets: ["latin"], weight: ["400","700"] });
 
+export const viewport: Viewport = {
+  themeColor: "#111111",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "Task Manager",
-  description: "Task Manager",
+  description: "Il tuo task manager personale",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Task Manager",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
