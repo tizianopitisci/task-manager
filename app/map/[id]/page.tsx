@@ -133,6 +133,7 @@ type TaskNodeData = {
   onOpenNotes: (id: string) => void;
   onSetAssignee: (id: string, assignee: string | null) => void;
   assignee: string | null;
+  showAssignee: boolean;
   nodeAccentColor: string;
   nodeChildColor: string;
   isDropTarget: boolean;
@@ -478,6 +479,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
                   ＋
                 </button>
 
+                {data.showAssignee && (
                 <button
                   type="button"
                   className={
@@ -495,6 +497,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
                 >
                   {data.assignee === "chiara" ? "👤 Chiara" : "👤"}
                 </button>
+                )}
 
                 <button
                   type="button"
@@ -957,6 +960,7 @@ export default function MapPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [mapName, setMapName] = useState<string>("");
+  const [showAssignee, setShowAssignee] = useState(true);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -1037,12 +1041,13 @@ export default function MapPage() {
     });
 
     // Nome mappa: usato come default per il nodo radice se non salvato
-    supabase.from("maps").select("name").eq("id", mapId).single().then(({ data }) => {
+    supabase.from("maps").select("name,show_assignee").eq("id", mapId).single().then(({ data }) => {
       if (data?.name) {
         setMapName(data.name);
         const savedLabel = window.localStorage.getItem(pfx + LS_ROOT_LABEL);
         setRootLabel(savedLabel?.trim() || data.name);
       }
+      if (data?.show_assignee === false) setShowAssignee(false);
     });
 
     // expanded viene inizializzato in load() dove abbiamo i task
@@ -1515,6 +1520,7 @@ export default function MapPage() {
             },
             onSetAssignee: setAssignee,
             assignee: t.assignee,
+            showAssignee,
             isDropTarget: t.id === dragTargetId,
             // nessun callback drag: gestito da onNodeDragStop su ReactFlow
           },
@@ -1887,6 +1893,23 @@ export default function MapPage() {
                       onChange={(e) => setNodeChildColor(e.target.value)}
                       className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
                     />
+                  </div>
+
+                  {/* Opzioni mappa */}
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Opzioni</div>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={showAssignee}
+                        onChange={async (e) => {
+                          const val = e.target.checked;
+                          setShowAssignee(val);
+                          await supabase.from("maps").update({ show_assignee: val }).eq("id", mapId);
+                        }}
+                      />
+                      Mostra tasto "Assegna a Chiara"
+                    </label>
                   </div>
                 </div>
               )}
