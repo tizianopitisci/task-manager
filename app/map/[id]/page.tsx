@@ -297,7 +297,8 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
 
   return (
     <div
-      className={["relative select-none rounded-xl px-2 py-1 transition-all", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2 bg-blue-50/30" : ""].join(" ")}
+      className={["relative select-none px-2 py-1 transition-all", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2 bg-blue-50/30" : ""].join(" ")}
+      style={{ borderRadius: "14px 14px 14px 0" }}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -359,9 +360,10 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
     }
   }, [data.isEditing]);
 
+  const nodeRadius = "14px 14px 14px 0";
   const wrapperClass = data.isTopLevel
-    ? ["relative min-w-[240px] max-w-[460px] rounded-2xl px-4 py-3 text-white shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2" : ""].join(" ")
-    : ["relative min-w-[260px] max-w-[460px] rounded-xl border px-3 py-2 shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-1 border-blue-400" : data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
+    ? ["relative min-w-[240px] max-w-[460px] px-4 py-3 text-white shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2" : ""].join(" ")
+    : ["relative min-w-[260px] max-w-[460px] border px-3 py-2 shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-1 border-blue-400" : data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
 
   const dueLabel = useMemo(() => {
     if (!data.dueAt) return null;
@@ -377,7 +379,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   return (
     <div
       className={wrapperClass}
-      style={{ backgroundColor: data.isTopLevel ? data.nodeAccentColor : data.nodeChildColor }}
+      style={{ backgroundColor: data.isTopLevel ? data.nodeAccentColor : data.nodeChildColor, borderRadius: nodeRadius }}
       title="Doppio clic per rinominare"
       onDoubleClick={(e) => {
         e.stopPropagation();
