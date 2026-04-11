@@ -1741,33 +1741,165 @@ export default function MapPage() {
       `}</style>
 
       {/* Toggle vista — fisso in alto al centro */}
-      {/* Back to dashboard */}
-      <button
-        onClick={() => router.push("/")}
-        className="fixed left-3 top-3 z-50 rounded-xl border border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm text-sm px-3 py-1.5 text-gray-500 hover:text-gray-800 transition-colors"
-        title="Dashboard"
-      >
-        ← {mapName || "Dashboard"}
-      </button>
-
-      {/* Toggle Mappa / Email */}
-      <div className="fixed left-1/2 top-3 z-50 -translate-x-1/2 overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-sm backdrop-blur-sm text-sm flex">
+      {/* ── Top bar unica ── */}
+      <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-1.5 border-b border-gray-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur-sm text-sm">
+        {/* Back */}
         <button
-          onClick={() => setViewMode("map")}
-          className={`px-3 py-1.5 transition-colors ${viewMode === "map" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          onClick={() => router.push("/")}
+          className="shrink-0 rounded-lg border border-gray-200 px-2 py-1 text-gray-500 hover:text-gray-800 transition-colors"
+          title="Dashboard"
         >
-          🗺 Mappa
+          ←
         </button>
+
+        {/* Toggle Mappa / Email */}
+        <div className="flex overflow-hidden rounded-lg border border-gray-200 shrink-0">
+          <button
+            onClick={() => setViewMode("map")}
+            className={`px-2.5 py-1 transition-colors ${viewMode === "map" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          >
+            🗺 <span className="hidden xs:inline">Mappa</span>
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            className={`px-2.5 py-1 transition-colors ${viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          >
+            📧 <span className="hidden xs:inline">Email</span>
+          </button>
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Oggi */}
         <button
-          onClick={() => setViewMode("list")}
-          className={`px-3 py-1.5 transition-colors ${viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          onClick={collapseToToday}
+          className="shrink-0 font-medium text-orange-500 hover:text-orange-600 px-1"
+          title="Mostra solo i task scaduti o in scadenza oggi"
         >
-          📧 Email
+          Oggi
+        </button>
+
+        <div className="h-4 w-px bg-gray-200 shrink-0" />
+
+        {/* Completati */}
+        <label className="flex shrink-0 cursor-pointer items-center gap-1 text-gray-600">
+          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+          <span className="hidden sm:inline">Completati</span>
+        </label>
+
+        <div className="h-4 w-px bg-gray-200 shrink-0" />
+
+        {/* Collassa tutto */}
+        <button onClick={collapseAll} className="shrink-0 text-gray-400 hover:text-gray-700" title="Chiudi tutti i nodi">⊖</button>
+
+        <div className="h-4 w-px bg-gray-200 shrink-0" />
+
+        {/* Palette */}
+        <button
+          onClick={() => { setSettingsOpen((v) => !v); }}
+          className={`shrink-0 ${settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
+          title="Personalizza"
+        >
+          🎨
         </button>
       </div>
 
+      {/* Pannello palette — fixed sotto la top bar a destra */}
+      {settingsOpen && (
+        <div
+          className="fixed top-11 right-2 z-50 w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[calc(100vh-56px)] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Font */}
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Font</div>
+          <div className="mb-4 flex flex-col gap-1">
+            {FONT_OPTIONS.map((f) => (
+              <button key={f.value} type="button"
+                style={{ fontFamily: `${f.value}, cursive`, fontSize: 15 }}
+                className={["rounded-lg px-3 py-1.5 text-left transition-colors", mapFont === f.value ? "border border-gray-400 bg-gray-100" : "border border-transparent hover:bg-gray-50"].join(" ")}
+                onClick={() => setMapFont(f.value)}>{f.label}</button>
+            ))}
+          </div>
+
+          {/* Sfondo */}
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Sfondo</div>
+          <div className="flex flex-wrap gap-2">
+            {BG_COLORS.map((c) => (
+              <button key={c.value} type="button" title={c.label}
+                className={["h-7 w-7 rounded-full border-2 transition-transform", bgColor === c.value ? "border-gray-500 scale-110" : "border-gray-200 hover:border-gray-400"].join(" ")}
+                style={{ backgroundColor: c.value }} onClick={() => setBgColor(c.value)} />
+            ))}
+          </div>
+          <div className="mt-2 mb-4 flex items-center gap-2">
+            <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(bgColor) ? bgColor : "#ffffff"} onChange={(e) => setBgColor(e.target.value)} className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0" />
+            <input type="text" value={bgColor} maxLength={7} placeholder="#ffffff" onChange={(e) => setBgColor(e.target.value)} className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+          </div>
+
+          {/* Nodi principali */}
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Nodi principali</div>
+          <div className="flex flex-wrap gap-2">
+            {ACCENT_COLORS.map((c) => (
+              <button key={c.value} type="button" title={c.label}
+                className={["h-7 w-7 rounded-full border-2 transition-transform", nodeAccentColor === c.value ? "border-gray-400 scale-110" : "border-gray-200 hover:border-gray-400"].join(" ")}
+                style={{ backgroundColor: c.value }} onClick={() => setNodeAccentColor(c.value)} />
+            ))}
+          </div>
+          <div className="mt-2 mb-4 flex items-center gap-2">
+            <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(nodeAccentColor) ? nodeAccentColor : "#000000"} onChange={(e) => setNodeAccentColor(e.target.value)} className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0" />
+            <input type="text" value={nodeAccentColor} maxLength={7} placeholder="#000000" onChange={(e) => setNodeAccentColor(e.target.value)} className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+          </div>
+
+          {/* Nodi figli */}
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Nodi figli</div>
+          <div className="flex flex-wrap gap-2">
+            {CHILD_COLORS.map((c) => (
+              <button key={c.value} type="button" title={c.label}
+                className={["h-7 w-7 rounded-full border-2 transition-transform", nodeChildColor === c.value ? "border-gray-400 scale-110" : "border-gray-200 hover:border-gray-400"].join(" ")}
+                style={{ backgroundColor: c.value }} onClick={() => setNodeChildColor(c.value)} />
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(nodeChildColor) ? nodeChildColor : "#ffffff"} onChange={(e) => setNodeChildColor(e.target.value)} className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0" />
+            <input type="text" value={nodeChildColor} maxLength={7} placeholder="#ffffff" onChange={(e) => setNodeChildColor(e.target.value)} className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+          </div>
+
+          {/* Testo nodo principale */}
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Testo nodo principale</div>
+            <div className="flex items-center gap-2">
+              <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(rootTextColor) ? rootTextColor : "#000000"} onChange={(e) => setRootTextColor(e.target.value)} className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0" />
+              <input type="text" value={rootTextColor} maxLength={7} placeholder="#000000" onChange={(e) => setRootTextColor(e.target.value)} className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs" />
+            </div>
+          </div>
+
+          {/* Ombra nodi */}
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-400">
+              <span>Ombra nodi</span>
+              <span className="font-normal normal-case">{["Nessuna","Leggera","Media","Forte","Intensa"][nodeShadowIndex]}</span>
+            </div>
+            <input type="range" min={0} max={4} step={1} value={nodeShadowIndex} onChange={(e) => setNodeShadowIndex(Number(e.target.value))} className="w-full accent-gray-800" />
+            <div className="mt-1 flex justify-between text-xs text-gray-300"><span>○</span><span>◔</span><span>◑</span><span>◕</span><span>●</span></div>
+          </div>
+
+          {/* Opzioni */}
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Opzioni</div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={showAssignee} onChange={async (e) => { const val = e.target.checked; setShowAssignee(val); await supabase.from("maps").update({ show_assignee: val }).eq("id", mapId); }} />
+              Mostra tasto "Assegna a Chiara"
+            </label>
+          </div>
+
+          {/* Logout */}
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <button onClick={logout} className="text-sm text-red-500 hover:text-red-700">Logout</button>
+          </div>
+        </div>
+      )}
+
       {viewMode === "list" && (
-        <div className="absolute inset-0 z-10">
+        <div className="absolute inset-0 z-10 pt-10">
           <EmailView
             tasks={tasks}
             emailConfigs={emailConfigs}
@@ -1778,7 +1910,7 @@ export default function MapPage() {
           />
         </div>
       )}
-      <div style={{ width: "100%", height: "100%", backgroundColor: bgColor, fontFamily: mapFont }}>
+      <div style={{ width: "100%", height: "100%", paddingTop: "40px", backgroundColor: bgColor, fontFamily: mapFont }}>
         <ReactFlow
           defaultNodes={[]}
           edges={edges}
@@ -1797,242 +1929,9 @@ export default function MapPage() {
           <FitViewOnLoad nodeCount={nodes.length} fitViewTrigger={fitViewTrigger} />
           <NodeSyncer nodes={nodes} />
           <RFNodesTracker getNodesRef={getNodesRef} />
-          <Panel position="top-right">
-            <div className="flex flex-col items-end gap-2">
-              {/* Barra controlli */}
-              <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-2 shadow-sm text-sm backdrop-blur-sm">
-                <button
-                  onClick={collapseToToday}
-                  className="font-medium text-orange-500 hover:text-orange-600"
-                  title="Mostra solo i task scaduti o in scadenza oggi"
-                >
-                  Oggi
-                </button>
-                <div className="h-4 w-px bg-gray-200" />
-                <label className="flex cursor-pointer items-center gap-1.5 text-gray-600">
-                  <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
-                  Completati
-                </label>
-                <div className="h-4 w-px bg-gray-200" />
-                <button onClick={collapseAll} className="text-gray-400 hover:text-gray-700" title="Chiudi tutti i nodi">
-                  ⊖
-                </button>
-                <div className="h-4 w-px bg-gray-200" />
-                <button
-                  onClick={() => { setViewMode("list"); setSettingsOpen(false); }}
-                  className={viewMode === "list" ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
-                  title="Email"
-                >
-                  📧
-                </button>
-                <div className="h-4 w-px bg-gray-200" />
-                <button
-                  onClick={() => { setSettingsOpen((v) => !v); }}
-                  className={settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}
-                  title="Personalizza"
-                >
-                  🎨
-                </button>
-                <div className="h-4 w-px bg-gray-200" />
-                <button onClick={logout} className="text-gray-500 hover:text-gray-800">
-                  Logout
-                </button>
-              </div>
-
-              {/* Pannello settings */}
-              {settingsOpen && (
-                <div
-                  className="w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[80vh] overflow-y-auto"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Font */}
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Font</div>
-                  <div className="mb-4 flex flex-col gap-1">
-                    {FONT_OPTIONS.map((f) => (
-                      <button
-                        key={f.value}
-                        type="button"
-                        style={{ fontFamily: `${f.value}, cursive`, fontSize: 15 }}
-                        className={[
-                          "rounded-lg px-3 py-1.5 text-left transition-colors",
-                          mapFont === f.value
-                            ? "border border-gray-400 bg-gray-100"
-                            : "border border-transparent hover:bg-gray-50",
-                        ].join(" ")}
-                        onClick={() => setMapFont(f.value)}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Sfondo */}
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Sfondo</div>
-                  <div className="flex flex-wrap gap-2">
-                    {BG_COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        title={c.label}
-                        className={[
-                          "h-7 w-7 rounded-full border-2 transition-transform",
-                          bgColor === c.value ? "border-gray-500 scale-110" : "border-gray-200 hover:border-gray-400",
-                        ].join(" ")}
-                        style={{ backgroundColor: c.value }}
-                        onClick={() => setBgColor(c.value)}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-2 mb-4 flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={/^#[0-9a-fA-F]{6}$/.test(bgColor) ? bgColor : "#ffffff"}
-                      onChange={(e) => setBgColor(e.target.value)}
-                      className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={bgColor}
-                      maxLength={7}
-                      placeholder="#ffffff"
-                      onChange={(e) => setBgColor(e.target.value)}
-                      className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
-                    />
-                  </div>
-
-                  {/* Colore nodi principali */}
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Nodi principali</div>
-                  <div className="flex flex-wrap gap-2">
-                    {ACCENT_COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        title={c.label}
-                        className={[
-                          "h-7 w-7 rounded-full border-2 transition-transform",
-                          nodeAccentColor === c.value ? "border-gray-400 scale-110" : "border-gray-200 hover:border-gray-400",
-                        ].join(" ")}
-                        style={{ backgroundColor: c.value }}
-                        onClick={() => setNodeAccentColor(c.value)}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-2 mb-4 flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={/^#[0-9a-fA-F]{6}$/.test(nodeAccentColor) ? nodeAccentColor : "#000000"}
-                      onChange={(e) => setNodeAccentColor(e.target.value)}
-                      className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={nodeAccentColor}
-                      maxLength={7}
-                      placeholder="#000000"
-                      onChange={(e) => setNodeAccentColor(e.target.value)}
-                      className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
-                    />
-                  </div>
-
-                  {/* Colore nodi figli */}
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Nodi figli</div>
-                  <div className="flex flex-wrap gap-2">
-                    {CHILD_COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        title={c.label}
-                        className={[
-                          "h-7 w-7 rounded-full border-2 transition-transform",
-                          nodeChildColor === c.value ? "border-gray-400 scale-110" : "border-gray-200 hover:border-gray-400",
-                        ].join(" ")}
-                        style={{ backgroundColor: c.value }}
-                        onClick={() => setNodeChildColor(c.value)}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={/^#[0-9a-fA-F]{6}$/.test(nodeChildColor) ? nodeChildColor : "#ffffff"}
-                      onChange={(e) => setNodeChildColor(e.target.value)}
-                      className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
-                    />
-                    <input
-                      type="text"
-                      value={nodeChildColor}
-                      maxLength={7}
-                      placeholder="#ffffff"
-                      onChange={(e) => setNodeChildColor(e.target.value)}
-                      className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
-                    />
-                  </div>
-
-                  {/* Colore testo nodo radice */}
-                  <div className="mt-4 border-t border-gray-100 pt-4">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Testo nodo principale</div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={/^#[0-9a-fA-F]{6}$/.test(rootTextColor) ? rootTextColor : "#000000"}
-                        onChange={(e) => setRootTextColor(e.target.value)}
-                        className="h-7 w-7 cursor-pointer rounded border border-gray-200 p-0"
-                      />
-                      <input
-                        type="text"
-                        value={rootTextColor}
-                        maxLength={7}
-                        placeholder="#000000"
-                        onChange={(e) => setRootTextColor(e.target.value)}
-                        className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Ombra nodi */}
-                  <div className="mt-4 border-t border-gray-100 pt-4">
-                    <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-gray-400">
-                      <span>Ombra nodi</span>
-                      <span className="font-normal normal-case text-gray-400">{["Nessuna","Leggera","Media","Forte","Intensa"][nodeShadowIndex]}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={4}
-                      step={1}
-                      value={nodeShadowIndex}
-                      onChange={(e) => setNodeShadowIndex(Number(e.target.value))}
-                      className="w-full accent-gray-800"
-                    />
-                    <div className="mt-1 flex justify-between text-xs text-gray-300">
-                      <span>○</span><span>◔</span><span>◑</span><span>◕</span><span>●</span>
-                    </div>
-                  </div>
-
-                  {/* Opzioni mappa */}
-                  <div className="mt-4 border-t border-gray-100 pt-4">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Opzioni</div>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={showAssignee}
-                        onChange={async (e) => {
-                          const val = e.target.checked;
-                          setShowAssignee(val);
-                          await supabase.from("maps").update({ show_assignee: val }).eq("id", mapId);
-                        }}
-                      />
-                      Mostra tasto "Assegna a Chiara"
-                    </label>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </Panel>
           {error && (
             <Panel position="top-left">
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="mt-10 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 Errore: {error}
               </div>
             </Panel>
