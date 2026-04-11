@@ -1740,74 +1740,43 @@ export default function MapPage() {
         .ProseMirror ol { margin: 0 0 10px 18px; }
       `}</style>
 
-      {/* Toggle vista — fisso in alto al centro */}
-      {/* ── Top bar unica ── */}
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-1.5 border-b border-gray-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur-sm text-sm">
-        {/* Back */}
+      {/* ── Controlli flotanti (nessuna barra di sfondo) ── */}
+      {/* Sinistra: back + toggle mappa/email */}
+      <div className="fixed top-3 left-3 z-50 flex items-center gap-1.5 text-sm">
         <button
           onClick={() => router.push("/")}
-          className="shrink-0 rounded-lg border border-gray-200 px-2 py-1 text-gray-500 hover:text-gray-800 transition-colors"
+          className="rounded-xl border border-gray-200 bg-white/90 px-2.5 py-1.5 text-gray-500 shadow-sm backdrop-blur-sm hover:text-gray-800 transition-colors"
           title="Dashboard"
-        >
-          ←
-        </button>
-
-        {/* Toggle Mappa / Email */}
-        <div className="flex overflow-hidden rounded-lg border border-gray-200 shrink-0">
-          <button
-            onClick={() => setViewMode("map")}
-            className={`px-2.5 py-1 transition-colors ${viewMode === "map" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
-          >
-            🗺 <span className="hidden xs:inline">Mappa</span>
-          </button>
-          <button
-            onClick={() => setViewMode("list")}
-            className={`px-2.5 py-1 transition-colors ${viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}
-          >
-            📧 <span className="hidden xs:inline">Email</span>
-          </button>
+        >←</button>
+        <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur-sm">
+          <button onClick={() => setViewMode("map")} className={`px-3 py-1.5 transition-colors ${viewMode === "map" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}>🗺</button>
+          <button onClick={() => setViewMode("list")} className={`px-3 py-1.5 transition-colors ${viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}>📧</button>
         </div>
+      </div>
 
-        <div className="flex-1" />
-
-        {/* Oggi */}
+      {/* Destra: Oggi + Completati + ⊖ + 🎨 */}
+      <div className="fixed top-3 right-3 z-50 flex items-center gap-1.5 text-sm">
         <button
           onClick={collapseToToday}
-          className="shrink-0 font-medium text-orange-500 hover:text-orange-600 px-1"
+          className="rounded-xl border border-orange-200 bg-white/90 px-2.5 py-1.5 font-medium text-orange-500 shadow-sm backdrop-blur-sm hover:text-orange-600 transition-colors"
           title="Mostra solo i task scaduti o in scadenza oggi"
-        >
-          Oggi
-        </button>
-
-        <div className="h-4 w-px bg-gray-200 shrink-0" />
-
-        {/* Completati */}
-        <label className="flex shrink-0 cursor-pointer items-center gap-1 text-gray-600">
-          <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
-          <span className="hidden sm:inline">Completati</span>
-        </label>
-
-        <div className="h-4 w-px bg-gray-200 shrink-0" />
-
-        {/* Collassa tutto */}
-        <button onClick={collapseAll} className="shrink-0 text-gray-400 hover:text-gray-700" title="Chiudi tutti i nodi">⊖</button>
-
-        <div className="h-4 w-px bg-gray-200 shrink-0" />
-
-        {/* Palette */}
-        <button
-          onClick={() => { setSettingsOpen((v) => !v); }}
-          className={`shrink-0 ${settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"}`}
-          title="Personalizza"
-        >
-          🎨
-        </button>
+        >Oggi</button>
+        <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm text-gray-600">
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
+            <span className="hidden sm:inline">Completati</span>
+          </label>
+          <div className="h-4 w-px bg-gray-200" />
+          <button onClick={collapseAll} className="text-gray-400 hover:text-gray-700" title="Chiudi tutti i nodi">⊖</button>
+          <div className="h-4 w-px bg-gray-200" />
+          <button onClick={() => setSettingsOpen((v) => !v)} className={settingsOpen ? "text-gray-900" : "text-gray-400 hover:text-gray-700"} title="Personalizza">🎨</button>
+        </div>
       </div>
 
       {/* Pannello palette — fixed sotto la top bar a destra */}
       {settingsOpen && (
         <div
-          className="fixed top-11 right-2 z-50 w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[calc(100vh-56px)] overflow-y-auto"
+          className="fixed top-14 right-3 z-50 w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm max-h-[calc(100vh-64px)] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Font */}
@@ -1899,7 +1868,7 @@ export default function MapPage() {
       )}
 
       {viewMode === "list" && (
-        <div className="absolute inset-0 z-10 pt-10">
+        <div className="absolute inset-0 z-10">
           <EmailView
             tasks={tasks}
             emailConfigs={emailConfigs}
@@ -1910,7 +1879,7 @@ export default function MapPage() {
           />
         </div>
       )}
-      <div style={{ width: "100%", height: "100%", paddingTop: "40px", backgroundColor: bgColor, fontFamily: mapFont }}>
+      <div style={{ width: "100%", height: "100%", backgroundColor: bgColor, fontFamily: mapFont }}>
         <ReactFlow
           defaultNodes={[]}
           edges={edges}
