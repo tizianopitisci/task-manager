@@ -374,7 +374,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   const nodeRadius = "0 14px 14px 14px";
   const wrapperClass = data.isTopLevel
     ? ["relative min-w-[240px] max-w-[460px] px-4 py-3 text-white shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-2" : ""].join(" ")
-    : ["relative min-w-[260px] max-w-[460px] border px-3 py-2 shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-1 border-blue-400" : data.isOverdue ? "border-red-300" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
+    : ["relative min-w-[260px] max-w-[460px] border px-3 py-2 shadow-sm transition-all", data.completed ? "opacity-60" : "", data.isDropTarget ? "ring-2 ring-blue-400 ring-offset-1 border-blue-400" : data.isOverdue ? "border-red-400" : data.isDueToday ? "border-amber-300" : "border-gray-300"].join(" ");
 
   const dueLabel = useMemo(() => {
     if (!data.dueAt) return null;
@@ -382,7 +382,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
     return dt.toFormat("LLL/dd");
   }, [data.dueAt]);
 
-  const badgeClass = data.isOverdue ? "border-red-300 bg-red-50 text-red-700" : data.isDueToday ? "border-amber-300 bg-amber-50 text-amber-800" : "border-gray-200 bg-gray-50 text-gray-700";
+  const badgeClass = data.isOverdue ? "border-red-600 bg-red-600 text-white font-semibold" : data.isDueToday ? "border-amber-300 bg-amber-50 text-amber-800" : "border-gray-200 bg-gray-50 text-gray-700";
 
   const notesPreview = stripHtmlToOneLine(data.notes);
   const notesHasContent = !!notesPreview;
