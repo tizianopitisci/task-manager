@@ -382,7 +382,7 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
     return dt.toFormat("LLL/dd");
   }, [data.dueAt]);
 
-  const badgeClass = data.isOverdue ? "border-red-600 bg-red-600 text-white font-semibold" : data.isDueToday ? "border-amber-300 bg-amber-50 text-amber-800" : "border-gray-200 bg-gray-50 text-gray-700";
+  const badgeClass = data.isOverdue ? "border-red-600 bg-red-600 text-white font-semibold" : data.isDueToday ? "border-red-600 bg-red-600 text-white font-semibold" : "border-gray-200 bg-gray-50 text-gray-700";
 
   const notesPreview = stripHtmlToOneLine(data.notes);
   const notesHasContent = !!notesPreview;
