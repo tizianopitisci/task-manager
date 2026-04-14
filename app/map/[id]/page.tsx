@@ -662,6 +662,156 @@ function getDescendants(allTasks: Task[], parentId: string): Task[] {
   return result;
 }
 
+// ================= TREE VIEW (mobile) =================
+function TreeView({
+  tasks,
+  expanded,
+  showCompleted,
+  mapName,
+  nodeAccentColor,
+  nodeChildColor,
+  mapFont,
+  onToggleExpand,
+  onToggleComplete,
+}: {
+  tasks: Task[];
+  expanded: ExpandedMap;
+  showCompleted: boolean;
+  mapName: string;
+  nodeAccentColor: string;
+  nodeChildColor: string;
+  mapFont: string;
+  onToggleExpand: (id: string) => void;
+  onToggleComplete: (id: string) => void;
+}) {
+  const visibleTasks = showCompleted ? tasks : tasks.filter((t) => !t.completed);
+  const todayRome = DateTime.now().setZone("Europe/Rome").toISODate() ?? "";
+
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, Task[]>();
+    for (const t of visibleTasks) {
+      const key = t.parent_id ?? null;
+      const arr = map.get(key) ?? [];
+      arr.push(t);
+      map.set(key, arr);
+    }
+    for (const [k, arr] of map) {
+      arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      map.set(k, arr);
+    }
+    return map;
+  }, [visibleTasks]);
+
+  const visibleIds = useMemo(() => new Set(visibleTasks.map((t) => t.id)), [visibleTasks]);
+
+  const topLevelIds = useMemo(
+    () => visibleTasks.filter((t) => !t.parent_id || !visibleIds.has(t.parent_id)).map((t) => t.id),
+    [visibleTasks, visibleIds],
+  );
+
+  function countDesc(id: string): number {
+    return (childrenByParent.get(id) ?? []).reduce((acc, k) => acc + 1 + countDesc(k.id), 0);
+  }
+
+  function renderTask(task: Task, depth: number): React.ReactNode {
+    const isExpanded = expanded[task.id] ?? true;
+    const children = childrenByParent.get(task.id) ?? [];
+    const hasKids = children.length > 0;
+    const descCount = countDesc(task.id);
+
+    const dueRome = task.due_at ? DateTime.fromISO(task.due_at).setZone("Europe/Rome") : null;
+    const dueDateRome = dueRome ? dueRome.toISODate() : null;
+    const isOverdue = !!dueRome && !task.completed && dueRome < DateTime.now().setZone("Europe/Rome").startOf("day");
+    const isDueToday = !!dueDateRome && dueDateRome === todayRome;
+    const dueLabel = dueRome ? dueRome.toFormat("LLL/dd") : null;
+
+    const isTopLevel = !task.parent_id || !visibleIds.has(task.parent_id);
+
+    return (
+      <div key={task.id}>
+        <div
+          className={[
+            "flex items-center gap-2 py-2.5 pr-3 rounded-xl mb-1.5",
+            isTopLevel ? "font-semibold text-white" : ["border text-sm", isOverdue || isDueToday ? "border-red-400" : "border-gray-200"].join(" "),
+            task.completed ? "opacity-50" : "",
+          ].join(" ")}
+          style={{
+            paddingLeft: depth * 18 + 12,
+            backgroundColor: isTopLevel ? nodeAccentColor : nodeChildColor,
+            fontFamily: mapFont,
+          }}
+        >
+          {/* expand toggle */}
+          {hasKids ? (
+            <button
+              type="button"
+              onClick={() => onToggleExpand(task.id)}
+              className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs opacity-60 hover:opacity-100"
+            >
+              {isExpanded ? "⊖" : "⊕"}
+            </button>
+          ) : (
+            <span className="shrink-0 w-5 h-5" />
+          )}
+
+          {/* checkbox */}
+          <input
+            type="checkbox"
+            checked={task.completed}
+            onChange={() => onToggleComplete(task.id)}
+            className="shrink-0 w-4 h-4 cursor-pointer"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* title */}
+          <span className={["flex-1 min-w-0 truncate", task.completed ? "line-through" : ""].join(" ")}>
+            {task.title}
+          </span>
+
+          {/* collapsed count */}
+          {hasKids && !isExpanded && (
+            <span className="shrink-0 rounded-full border border-current px-1.5 text-xs opacity-50">
+              {descCount}
+            </span>
+          )}
+
+          {/* due badge */}
+          {dueLabel && (
+            <span
+              className={[
+                "shrink-0 rounded-lg border px-2 py-0.5 text-xs",
+                isOverdue || isDueToday
+                  ? "border-red-600 bg-red-600 text-white font-semibold"
+                  : "border-gray-200 bg-gray-50 text-gray-600",
+              ].join(" ")}
+            >
+              {dueLabel}
+            </span>
+          )}
+        </div>
+
+        {hasKids && isExpanded && children.map((child) => renderTask(child, depth + 1))}
+      </div>
+    );
+  }
+
+  const topLevelTasks = (childrenByParent.get(null) ?? []).filter((t) => topLevelIds.includes(t.id));
+
+  return (
+    <div className="absolute inset-0 overflow-y-auto pt-16 pb-10 px-3" style={{ fontFamily: mapFont }}>
+      {/* Map name */}
+      <div
+        className="rounded-2xl px-4 py-3 mb-3 font-bold text-lg text-white"
+        style={{ backgroundColor: nodeAccentColor, fontFamily: mapFont }}
+      >
+        {mapName}
+      </div>
+
+      {topLevelTasks.map((t) => renderTask(t, 0))}
+    </div>
+  );
+}
+
 function EmailView({
   tasks,
   emailConfigs,
@@ -1036,7 +1186,9 @@ export default function MapPage() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null);
 
-  const [viewMode, setViewMode] = useState<"map" | "list">("map");
+  const [viewMode, setViewMode] = useState<"map" | "tree" | "list">(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "tree" : "map"
+  );
 
   // drag-to-reparent
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
@@ -1750,6 +1902,7 @@ export default function MapPage() {
         >←</button>
         <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white/90 shadow-sm backdrop-blur-sm">
           <button onClick={() => setViewMode("map")} className={`px-3 py-1.5 transition-colors ${viewMode === "map" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}>🗺</button>
+          <button onClick={() => setViewMode("tree")} className={`px-3 py-1.5 transition-colors ${viewMode === "tree" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}>📋</button>
           <button onClick={() => setViewMode("list")} className={`px-3 py-1.5 transition-colors ${viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-800"}`}>📧</button>
         </div>
       </div>
@@ -1864,6 +2017,22 @@ export default function MapPage() {
           <div className="mt-4 border-t border-gray-100 pt-4">
             <button onClick={logout} className="text-sm text-red-500 hover:text-red-700">Logout</button>
           </div>
+        </div>
+      )}
+
+      {viewMode === "tree" && (
+        <div className="absolute inset-0 z-10" style={{ backgroundColor: bgColor }}>
+          <TreeView
+            tasks={visibleTasks}
+            expanded={expanded}
+            showCompleted={showCompleted}
+            mapName={mapName}
+            nodeAccentColor={nodeAccentColor}
+            nodeChildColor={nodeChildColor}
+            mapFont={mapFont}
+            onToggleExpand={toggleExpand}
+            onToggleComplete={toggleCompletedCascade}
+          />
         </div>
       )}
 
