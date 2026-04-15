@@ -1675,7 +1675,7 @@ export default function MapPage() {
       return total;
     };
 
-    const xGap = 440;
+    const xGap = 520;
     const yGap = 110;
 
     const fanCount = Math.max(1, roots.length);
