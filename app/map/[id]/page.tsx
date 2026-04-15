@@ -673,6 +673,8 @@ function TreeView({
   mapFont,
   onToggleExpand,
   onToggleComplete,
+  onOpenNotes,
+  onSetDue,
 }: {
   tasks: Task[];
   expanded: ExpandedMap;
@@ -683,7 +685,11 @@ function TreeView({
   mapFont: string;
   onToggleExpand: (id: string) => void;
   onToggleComplete: (id: string) => void;
+  onOpenNotes: (id: string) => void;
+  onSetDue: (id: string, dateISO: string | null) => void;
 }) {
+  const [sheetTaskId, setSheetTaskId] = useState<string | null>(null);
+
   const visibleTasks = showCompleted ? tasks : tasks.filter((t) => !t.completed);
   const todayRome = DateTime.now().setZone("Europe/Rome").toISODate() ?? "";
 
@@ -731,7 +737,7 @@ function TreeView({
       <div key={task.id}>
         <div
           className={[
-            "flex items-center gap-2 py-2.5 pr-3 rounded-xl mb-1.5",
+            "flex items-center gap-2 py-2.5 pr-3 rounded-xl mb-1.5 active:opacity-70 transition-opacity",
             isTopLevel ? "font-semibold text-white" : ["border text-sm", isOverdue || isDueToday ? "border-red-400" : "border-gray-200"].join(" "),
             task.completed ? "opacity-50" : "",
           ].join(" ")}
@@ -740,18 +746,19 @@ function TreeView({
             backgroundColor: isTopLevel ? nodeAccentColor : nodeChildColor,
             fontFamily: mapFont,
           }}
+          onClick={() => setSheetTaskId(task.id)}
         >
           {/* expand toggle */}
           {hasKids ? (
             <button
               type="button"
-              onClick={() => onToggleExpand(task.id)}
-              className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full text-xs opacity-60 hover:opacity-100"
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(task.id); }}
+              className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs opacity-60 hover:opacity-100"
             >
               {isExpanded ? "⊖" : "⊕"}
             </button>
           ) : (
-            <span className="shrink-0 w-5 h-5" />
+            <span className="shrink-0 w-6 h-6" />
           )}
 
           {/* checkbox */}
@@ -784,6 +791,7 @@ function TreeView({
                   ? "border-red-600 bg-red-600 text-white font-semibold"
                   : "border-gray-200 bg-gray-50 text-gray-600",
               ].join(" ")}
+              onClick={(e) => e.stopPropagation()}
             >
               {dueLabel}
             </span>
@@ -796,6 +804,7 @@ function TreeView({
   }
 
   const topLevelTasks = (childrenByParent.get(null) ?? []).filter((t) => topLevelIds.includes(t.id));
+  const sheetTask = sheetTaskId ? tasks.find((t) => t.id === sheetTaskId) ?? null : null;
 
   return (
     <div className="absolute inset-0 overflow-y-auto pt-16 pb-10 px-3" style={{ fontFamily: mapFont }}>
@@ -808,6 +817,55 @@ function TreeView({
       </div>
 
       {topLevelTasks.map((t) => renderTask(t, 0))}
+
+      {/* Bottom sheet dettaglio task */}
+      {sheetTask && (
+        <>
+          {/* backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/30"
+            onClick={() => setSheetTaskId(null)}
+          />
+          {/* sheet */}
+          <div className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white shadow-2xl p-5 pb-8" style={{ fontFamily: mapFont }}>
+            {/* handle */}
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-300" />
+
+            {/* title */}
+            <div className="mb-4 text-base font-semibold text-gray-900 leading-snug">{sheetTask.title}</div>
+
+            {/* scadenza */}
+            <div className="mb-4">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-400">Scadenza</label>
+              <input
+                type="date"
+                defaultValue={isoToDateInput(sheetTask.due_at)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                onChange={(e) => onSetDue(sheetTask.id, dateInputToDueISO(e.target.value))}
+              />
+            </div>
+
+            {/* note */}
+            <button
+              type="button"
+              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-left text-sm text-gray-700 flex items-center gap-2 hover:bg-gray-50 active:bg-gray-100"
+              onClick={() => { onOpenNotes(sheetTask.id); setSheetTaskId(null); }}
+            >
+              <span>📝</span>
+              <span>{sheetTask.notes ? "Leggi / modifica note" : "Aggiungi note"}</span>
+            </button>
+
+            {/* chiudi */}
+            <button
+              type="button"
+              className="mt-3 w-full rounded-xl bg-gray-100 px-4 py-3 text-sm font-medium text-gray-600"
+              onClick={() => setSheetTaskId(null)}
+            >
+              Chiudi
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2032,6 +2090,8 @@ export default function MapPage() {
             mapFont={mapFont}
             onToggleExpand={toggleExpand}
             onToggleComplete={toggleCompletedCascade}
+            onOpenNotes={(id) => { setNotesTaskId(id); setNotesOpen(true); }}
+            onSetDue={setDue}
           />
         </div>
       )}
