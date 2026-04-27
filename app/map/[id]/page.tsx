@@ -573,9 +573,8 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
   );
 });
 
-// Chiama fitView una volta sola, dopo che i task sono stati caricati e i nodi misurati;
-// oppure ogni volta che fitViewTrigger viene incrementato (es. dopo l'aggiunta di un task).
-function FitViewOnLoad({ nodeCount, fitViewTrigger }: { nodeCount: number; fitViewTrigger: number }) {
+// Chiama fitView una volta sola al caricamento iniziale della mappa.
+function FitViewOnLoad({ nodeCount }: { nodeCount: number }) {
   const { fitView } = useReactFlow();
   const fitted = useRef(false);
   useEffect(() => {
@@ -584,11 +583,6 @@ function FitViewOnLoad({ nodeCount, fitViewTrigger }: { nodeCount: number; fitVi
       setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 50);
     }
   }, [nodeCount, fitView]);
-  useEffect(() => {
-    if (fitViewTrigger > 0) {
-      setTimeout(() => fitView({ padding: 0.2, duration: 400 }), 150);
-    }
-  }, [fitViewTrigger, fitView]);
   return null;
 }
 
@@ -1258,10 +1252,7 @@ export default function MapPage() {
   }, []);
 
   // posizioni libere salvate dall'utente con il drag
-  const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({});
-
-  // incrementato per forzare fitView dopo l'aggiunta di un task
-  const [fitViewTrigger, setFitViewTrigger] = useState(0);
+  const [manualPositions, setManualPositions] = useState<Record<string, { x: number; y: number }>>({})
 
   // Ref stabile per addRootTask: evita stale closure nei nodi ReactFlow (uncontrolled mode)
   const addRootTaskRef = useRef<() => Promise<void>>(() => Promise.resolve());
@@ -1517,7 +1508,6 @@ export default function MapPage() {
 
     await load();
     if (data?.id) setEditingId(data.id);
-    setFitViewTrigger((n) => n + 1);
   }, [tasks, userId]);
 
   // Aggiorna il ref dopo ogni render (useLayoutEffect = prima del paint, dopo DOM update)
@@ -1544,7 +1534,6 @@ export default function MapPage() {
 
     await load();
     if (data?.id) setEditingId(data.id);
-    setFitViewTrigger((n) => n + 1);
   };
 
   const toggleCompletedCascade = async (id: string) => {
@@ -2124,7 +2113,7 @@ export default function MapPage() {
           onNodeDragStop={onNodeDragStop}
         >
           <Controls />
-          <FitViewOnLoad nodeCount={nodes.length} fitViewTrigger={fitViewTrigger} />
+          <FitViewOnLoad nodeCount={nodes.length} />
           <NodeSyncer nodes={nodes} />
           <RFNodesTracker getNodesRef={getNodesRef} />
           {error && (
