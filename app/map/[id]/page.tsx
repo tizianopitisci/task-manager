@@ -332,11 +332,11 @@ const RootTextNode = memo(function RootTextNode({ data }: NodeProps<RootNodeData
             if (e.key === "Escape") data.onCancel();
           }}
           onBlur={() => data.onCommit(draft)}
-          className="w-[260px] border-b border-gray-400 bg-transparent text-4xl font-semibold italic outline-none"
+          className="w-[260px] border-b border-gray-400 bg-transparent text-4xl font-semibold italic outline-none uppercase"
         />
       ) : (
         <div className="flex items-center gap-2">
-          <div className="text-5xl font-semibold italic tracking-wide" style={{ color: data.rootTextColor }}>{data.label}</div>
+          <div className="text-5xl font-semibold italic tracking-wide uppercase" style={{ color: data.rootTextColor }}>{data.label}</div>
           <button
             type="button"
             className="nodrag nopan rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-800"
@@ -454,11 +454,11 @@ const TaskNode = memo(function TaskNode({ data }: NodeProps<TaskNodeData>) {
                     if (e.key === "Escape") data.onCancel();
                   }}
                   onBlur={() => data.onCommit(data.id, draft)}
-                  className={data.isTopLevel ? "w-full rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-sm text-white outline-none" : "w-full rounded-lg border border-gray-300 px-2 py-1 text-sm"}
+                  className={data.isTopLevel ? "w-full rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-sm text-white outline-none uppercase" : "w-full rounded-lg border border-gray-300 px-2 py-1 text-sm uppercase"}
                 />
               ) : (
                 <div className="min-w-0">
-                  <div className="truncate font-semibold">{data.title}</div>
+                  <div className="truncate font-semibold uppercase">{data.title}</div>
                   {notesHasContent ? <div className={data.isTopLevel ? "mt-0.5 truncate text-xs text-white/70" : "mt-0.5 truncate text-xs text-gray-500"}>{notesPreview}</div> : null}
                 </div>
               )}
@@ -765,7 +765,7 @@ function TreeView({
           />
 
           {/* title */}
-          <span className={["flex-1 min-w-0 truncate", task.completed ? "line-through" : ""].join(" ")}>
+          <span className={["flex-1 min-w-0 truncate uppercase", task.completed ? "line-through" : ""].join(" ")}>
             {task.title}
           </span>
 
